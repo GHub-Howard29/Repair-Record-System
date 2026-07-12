@@ -1,0 +1,16 @@
+{
+  "name": "維修紀錄系統",
+  "short_name": "維修紀錄",
+  "description": "維修案件、附件、同步與匯出的 PWA 工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#2f855a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
