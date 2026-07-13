@@ -1,6 +1,6 @@
 export const agentHandbook = {
   project: '維修紀錄系統',
-  currentPhase: 'Phase 1：專案初始化',
+  currentPhase: 'Phase 3/4：附件管理與同步架構',
   sourceDocs: [
     'docs/01_需求分析.md',
     'docs/02_系統架構.md',
@@ -20,7 +20,7 @@ export const agentHandbook = {
     warranty: '出貨日期 + 1 年 + 30 天保固判斷',
     export: 'PDF 與 Excel 匯出',
     sync: 'Firestore/Drive 同步、離線暫存與待同步管理',
+    services: 'Firestore、Drive、匯出等可替換式外部服務介面',
   },
   handoffDocs: ['docs/04_工作規範.md', 'docs/05_交接紀錄.md'],
 } as const
-

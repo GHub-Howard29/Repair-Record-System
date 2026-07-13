@@ -14,8 +14,11 @@ export interface RepairAttachment {
   label: string
   fileName: string
   size: number
+  mimeType: string
+  compressed: boolean
   previewUrl?: string
   syncStatus: SyncStatus
+  createdAt: string
 }
 
 export interface RepairRecord {

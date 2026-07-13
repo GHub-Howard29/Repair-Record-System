@@ -1,4 +1,5 @@
 import type { SyncStatus } from '../../types/repair'
+import type { SyncTask } from './syncQueue'
 
 export interface SyncPlanItem {
   target: 'firestore' | 'drive' | 'local'
@@ -24,3 +25,25 @@ export const initialSyncPlan: SyncPlanItem[] = [
   },
 ]
 
+export function buildSyncPlan(tasks: SyncTask[]): SyncPlanItem[] {
+  const hasPendingText = tasks.some((task) => task.kind === 'repair-text')
+  const hasPendingAttachment = tasks.some((task) => task.kind === 'attachment')
+
+  return [
+    {
+      target: 'firestore',
+      title: '文字資料即時同步至 Google Firestore',
+      status: hasPendingText ? 'pending' : 'synced',
+    },
+    {
+      target: 'drive',
+      title: '照片附件依網路狀態同步至 Google Drive',
+      status: hasPendingAttachment ? 'pending' : 'local',
+    },
+    {
+      target: 'local',
+      title: '離線與失敗資料保留於本機待同步清單',
+      status: tasks.length > 0 ? 'pending' : 'synced',
+    },
+  ]
+}

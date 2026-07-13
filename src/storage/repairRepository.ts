@@ -1,4 +1,5 @@
 import type { RepairRecord } from '../types/repair'
+import type { RepairRecordService } from '../services/repairRecordService'
 
 const STORAGE_KEY = 'repair-record-system.records'
 
@@ -36,5 +37,16 @@ export function sortRepairRecords(records: RepairRecord[]): RepairRecord[] {
   return [...records].sort((first, second) =>
     second.receivedDate.localeCompare(first.receivedDate),
   )
+}
+
+export const localRepairRecordService: RepairRecordService = {
+  list: loadRepairRecords,
+  save(record) {
+    return upsertRepairRecord(loadRepairRecords(), record)
+  },
+  replaceAll(records) {
+    saveRepairRecords(records)
+    return sortRepairRecords(records)
+  },
 }
 

@@ -29,6 +29,17 @@ interface GoogleIdentityServices {
         auto_select?: boolean
         cancel_on_tap_outside?: boolean
       }): void
+      renderButton(
+        parent: HTMLElement,
+        options: {
+          theme?: 'outline' | 'filled_blue' | 'filled_black'
+          size?: 'large' | 'medium' | 'small'
+          text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
+          shape?: 'rectangular' | 'pill' | 'circle' | 'square'
+          logo_alignment?: 'left' | 'center'
+          width?: string
+        },
+      ): void
       prompt(callback?: (notification: GooglePromptNotification) => void): void
       disableAutoSelect(): void
     }
@@ -121,6 +132,46 @@ export async function signInWithGoogle(clientId: string): Promise<AuthUser> {
   })
 }
 
+export async function renderGoogleSignInButton(
+  clientId: string,
+  container: HTMLElement,
+  onSuccess: (user: AuthUser) => void,
+  onError: (message: string) => void,
+): Promise<void> {
+  if (!clientId) {
+    onError('尚未設定 Google Client ID。')
+    return
+  }
+
+  await loadGoogleIdentityServices()
+
+  container.replaceChildren()
+
+  window.google?.accounts.id.initialize({
+    client_id: clientId,
+    callback(response) {
+      try {
+        const user = parseCredential(response.credential)
+        saveAuthUser(user)
+        onSuccess(user)
+      } catch (error) {
+        onError(error instanceof Error ? error.message : 'Google 登入憑證解析失敗。')
+      }
+    },
+    auto_select: false,
+    cancel_on_tap_outside: true,
+  })
+
+  window.google?.accounts.id.renderButton(container, {
+    theme: 'outline',
+    size: 'large',
+    text: 'signin_with',
+    shape: 'rectangular',
+    logo_alignment: 'left',
+    width: '260',
+  })
+}
+
 function loadGoogleIdentityServices(): Promise<void> {
   if (window.google?.accounts.id) {
     return Promise.resolve()
@@ -174,4 +225,3 @@ function decodeBase64Url(value: string): string {
 
   return new TextDecoder().decode(bytes)
 }
-
