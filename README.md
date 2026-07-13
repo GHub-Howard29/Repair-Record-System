@@ -33,7 +33,18 @@ http://127.0.0.1:5173/Repair-Record-System/
 請複製 `.env.example` 建立 `.env`，並填入 Google OAuth Client ID：
 
 ```env
+# Google OAuth Web Client
 VITE_GOOGLE_CLIENT_ID=123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com
+
+# Firebase / Firestore
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_APP_ID=
+
+# Google Drive attachments
+VITE_GOOGLE_DRIVE_FOLDER_ID=
+VITE_GOOGLE_DRIVE_SCOPE=https://www.googleapis.com/auth/drive.file
 ```
 
 `VITE_GOOGLE_CLIENT_ID` 不是 Email，必須是 Google Cloud Console 建立的 OAuth 2.0 Client ID。
@@ -83,7 +94,8 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 
 1. 以正式 `VITE_GOOGLE_CLIENT_ID` 驗證 Google OAuth 登入流程。
 2. push 到 `main`，驗證 GitHub Pages Actions 部署。
-3. 建立 Firestore repository，替換目前 `localStorage` 儲存。
-4. 建立 Google Drive 附件上傳流程，替換目前本機附件暫存。
-5. 將瀏覽器列印/CSV 匯出替換或擴充為正式 PDF 與 `.xlsx` 產出。
-6. 補維修紀錄、附件、同步與搜尋規則測試。
+3. 建立 Firebase project 與 Firestore，填入 `VITE_FIREBASE_*` 欄位。
+4. 建立 Firestore repository，替換目前 `localStorage` 儲存。
+5. 建立 Google Drive 附件資料夾與上傳流程，替換目前本機附件暫存。
+6. 將瀏覽器列印/CSV 匯出替換或擴充為正式 PDF 與 `.xlsx` 產出。
+7. 補維修紀錄、附件、同步與搜尋規則測試。

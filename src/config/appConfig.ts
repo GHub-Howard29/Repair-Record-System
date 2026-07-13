@@ -6,7 +6,12 @@ export const appConfig = {
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim() ?? '',
     appId: import.meta.env.VITE_FIREBASE_APP_ID?.trim() ?? '',
   },
-  googleDriveFolderId: import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID?.trim() ?? '',
+  googleDrive: {
+    folderId: import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID?.trim() ?? '',
+    scope:
+      import.meta.env.VITE_GOOGLE_DRIVE_SCOPE?.trim() ??
+      'https://www.googleapis.com/auth/drive.file',
+  },
   authMode: import.meta.env.VITE_GOOGLE_CLIENT_ID ? 'google' : 'local',
 } as const
 
@@ -24,5 +29,5 @@ export function isFirebaseConfigured(): boolean {
 }
 
 export function isGoogleDriveConfigured(): boolean {
-  return Boolean(appConfig.googleDriveFolderId)
+  return Boolean(appConfig.googleDrive.folderId && appConfig.googleDrive.scope)
 }
