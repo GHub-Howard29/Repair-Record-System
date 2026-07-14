@@ -44,7 +44,7 @@ export async function processSyncQueue(
 
     try {
       if (task.kind === 'repair-text') {
-        nextRecords = syncRepairText(nextRecords, task.recordId, options.repairRecordService)
+        nextRecords = await syncRepairText(nextRecords, task.recordId, options.repairRecordService)
       }
 
       if (task.kind === 'attachment' && task.attachmentId) {
@@ -73,11 +73,11 @@ export async function processSyncQueue(
   }
 }
 
-function syncRepairText(
+async function syncRepairText(
   records: RepairRecord[],
   recordId: string,
   repairRecordService: RepairRecordService,
-): RepairRecord[] {
+): Promise<RepairRecord[]> {
   const record = records.find((item) => item.id === recordId)
 
   if (!record) {

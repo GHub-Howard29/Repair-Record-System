@@ -1,4 +1,4 @@
-# 03_開發 Roadmap
+﻿# 03_開發 Roadmap
 
 ## 文件目的
 
@@ -64,21 +64,21 @@
 
 ## 目標
 
-完成照片管理。
+完成本機照片管理，並保留後續雲端上傳接點。
 
 ## 工作項目
 
 - 拍照
 - 選擇照片
 - 圖片壓縮
-- Google Drive 上傳
+- 本機附件暫存
 - 系統內預覽
 - 更換附件
 - 刪除附件
 
 完成後：
 
-可完成完整附件流程。
+可完成本機附件流程，雲端上傳待後端代理層完成後串接。
 
 ---
 
@@ -86,11 +86,12 @@
 
 ## 目標
 
-完成跨裝置協同作業。
+完成維修文字資料跨裝置協同作業。
 
 ## 工作項目
 
 - Firestore 同步
+- Firestore Security Rules
 - 離線暫存
 - 自動同步
 - 待同步管理
@@ -98,7 +99,28 @@
 
 完成後：
 
-可於多裝置共同作業。
+維修文字資料可於多裝置共同作業，且讀寫限於授權帳號。
+
+---
+
+# Phase 4.5：附件雲端上傳代理
+
+## 目標
+
+以安全的後端代理方式完成 Google Drive 附件上傳。
+
+## 工作項目
+
+- 建立 Firebase Functions 或等效後端 endpoint
+- 將 Google Service Account credentials 放在後端 secret
+- 將 Google Drive 目標資料夾分享給 Service Account email
+- 前端呼叫後端 upload endpoint
+- 後端上傳附件到 Google Drive 並回傳 file ID / URL
+- 更新附件同步佇列，改用後端代理上傳
+
+完成後：
+
+可安全保存附件到 Google Drive，且不把 Service Account private key 暴露到前端。
 
 ---
 
@@ -157,3 +179,31 @@
 完成後：
 
 發布 V1.0。
+
+---
+
+# 資安優先的雲端串接順序
+
+## 目的
+
+本專案目前是部署在 GitHub Pages 的 Vite 前端，因此所有 `VITE_*` 環境變數都會被打包到瀏覽器程式碼。Google Service Account private key、後端金鑰或任何真正的秘密資訊，不得放在前端 `.env` 或任何 `VITE_*` 欄位。
+
+## 建議順序
+
+1. 保留 Google OAuth 作為登入身分層。
+2. 優先串接 Firebase / Firestore，作為維修文字資料的正式資料庫。
+3. 加上 Firestore Security Rules，只允許授權 Google 帳號讀寫。
+4. 照片附件先維持本機暫存或暫不做正式雲端上傳。
+5. 後續建立後端上傳代理，優先考慮 Firebase Functions。
+6. Google Service Account credentials 只存放在後端 secrets 或雲端環境變數。
+7. 前端將照片送到後端 endpoint，由後端上傳到 Google Drive 並回傳 file ID / URL。
+
+## 本專案決策
+
+目前使用者以 1 人為主，未來可能開放額外 2 人查詢或使用。考量維護者仍在熟悉程式與雲端服務，最安全且可循序落地的路線是：
+
+```text
+Google OAuth -> Firestore records + rules -> Firebase Functions -> Service Account Drive uploads
+```
+
+Google Drive 不採用前端直接持有 Service Account 權限的做法。前端可暫時保留非敏感設定欄位，但正式附件上傳需經由後端代理完成。

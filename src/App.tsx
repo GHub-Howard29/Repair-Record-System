@@ -7,7 +7,7 @@ import {
   signInWithGoogle,
   type AuthUser,
 } from './auth/googleAuth'
-import { appConfig, isGoogleAuthConfigured } from './config/appConfig'
+import { appConfig, isFirebaseConfigured, isGoogleAuthConfigured } from './config/appConfig'
 import { buildSyncPlan } from './features/sync/syncPlan'
 import { getSyncEnvironment } from './features/sync/syncEnvironment'
 import { processSyncQueue } from './features/sync/syncProcessor'
@@ -36,12 +36,16 @@ import {
 } from './features/attachment/attachmentRules'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
 import { browserExportService } from './services/exportService'
+import { getFirebaseAuth } from './services/firebaseClient'
+import { firestoreRepairRecordService } from './services/firestoreRepairRecordService'
 import { localRepairRecordService } from './storage/repairRepository'
 import type { PurchaseType, RepairAttachment, RepairFormValues, RepairRecord } from './types/repair'
 
+const repairRecordService = isFirebaseConfigured() ? firestoreRepairRecordService : localRepairRecordService
+
 function App() {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser())
-  const [records, setRecords] = useState<RepairRecord[]>(() => localRepairRecordService.list())
+  const [records, setRecords] = useState<RepairRecord[]>([])
   const [syncTasks, setSyncTasks] = useState<SyncTask[]>(() => loadSyncQueue())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedRecord = records.find((record) => record.id === selectedId)
@@ -108,6 +112,35 @@ function App() {
   }, [categoryFilter, dateFilter, records, searchText])
 
   useEffect(() => {
+    let ignore = false
+
+    async function loadRecords() {
+      if (!user) {
+        setRecords([])
+        return
+      }
+
+      try {
+        const nextRecords = await repairRecordService.list()
+
+        if (!ignore) {
+          setRecords(nextRecords)
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error instanceof Error ? error.message : '資料載入失敗，請稍後再試。')
+        }
+      }
+    }
+
+    void loadRecords()
+
+    return () => {
+      ignore = true
+    }
+  }, [user])
+
+  useEffect(() => {
     if (user || !isGoogleAuthConfigured() || !googleButtonRef.current) {
       return
     }
@@ -156,7 +189,7 @@ function App() {
     }))
   }
 
-  function saveRecord() {
+  async function saveRecord() {
     if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setMessage('已完成案件不可修改，請建立新紀錄補充說明。')
       return
@@ -174,15 +207,19 @@ function App() {
       return
     }
 
-    const nextRecord = buildRepairRecord(form, selectedRecord)
-    const nextRecords = localRepairRecordService.save(nextRecord)
-    const nextTasks = enqueueRepairTextSync(syncTasks, nextRecord)
-    setRecords(nextRecords)
-    setSyncTasks(nextTasks)
-    setSelectedId(nextRecord.id)
-    setForm(toRepairFormValues(nextRecord))
-    setMessage(nextRecord.returnedDate ? '案件已完成並鎖定。' : '維修紀錄已儲存，文字資料列入待同步。')
-    setAttachmentMessage(nextRecord.returnedDate ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。')
+    try {
+      const nextRecord = buildRepairRecord(form, selectedRecord)
+      const nextRecords = await repairRecordService.save(nextRecord)
+      const nextTasks = enqueueRepairTextSync(syncTasks, nextRecord)
+      setRecords(nextRecords)
+      setSyncTasks(nextTasks)
+      setSelectedId(nextRecord.id)
+      setForm(toRepairFormValues(nextRecord))
+      setMessage(nextRecord.returnedDate ? '案件已完成並鎖定。' : '維修紀錄已儲存，文字資料列入待同步。')
+      setAttachmentMessage(nextRecord.returnedDate ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。')
+    } catch (error) {
+      setMessage(buildSaveErrorMessage(error))
+    }
   }
 
   async function addAttachment(files: FileList | null) {
@@ -211,7 +248,7 @@ function App() {
         updatedAt: new Date().toISOString(),
       }
 
-      persistRecord(nextRecord, attachment.id)
+      await persistRecord(nextRecord, attachment.id)
       setAttachmentMessage(attachment.compressed ? '已自動壓縮照片，以符合系統限制。' : '附件已加入待同步清單。')
     } catch (error) {
       setAttachmentMessage(error instanceof Error ? error.message : '附件處理失敗。')
@@ -247,7 +284,7 @@ function App() {
         updatedAt: new Date().toISOString(),
       }
 
-      persistRecord(nextRecord, attachmentId)
+      await persistRecord(nextRecord, attachmentId)
       setPreviewAttachment(null)
       setAttachmentMessage(attachment.compressed ? '已自動壓縮照片，以符合系統限制。' : '附件已更換並列入待同步。')
     } catch (error) {
@@ -273,20 +310,24 @@ function App() {
       updatedAt: new Date().toISOString(),
     }
 
-    persistRecord(nextRecord)
+    void persistRecord(nextRecord)
     setPreviewAttachment(null)
     setAttachmentMessage('附件已刪除。')
   }
 
-  function persistRecord(record: RepairRecord, attachmentId?: string) {
-    const nextRecords = localRepairRecordService.save(record)
-    const nextTextTasks = enqueueRepairTextSync(syncTasks, record)
-    const nextTasks = attachmentId ? enqueueAttachmentSync(nextTextTasks, record.id, attachmentId) : nextTextTasks
+  async function persistRecord(record: RepairRecord, attachmentId?: string) {
+    try {
+      const nextRecords = await repairRecordService.save(record)
+      const nextTextTasks = enqueueRepairTextSync(syncTasks, record)
+      const nextTasks = attachmentId ? enqueueAttachmentSync(nextTextTasks, record.id, attachmentId) : nextTextTasks
 
-    setRecords(nextRecords)
-    setSyncTasks(nextTasks)
-    setSelectedId(record.id)
-    setForm(toRepairFormValues(record))
+      setRecords(nextRecords)
+      setSyncTasks(nextTasks)
+      setSelectedId(record.id)
+      setForm(toRepairFormValues(record))
+    } catch (error) {
+      setMessage(buildSaveErrorMessage(error))
+    }
   }
 
   async function runSyncQueue() {
@@ -298,7 +339,7 @@ function App() {
     const result = await processSyncQueue(records, syncTasks, {
       allowMobileAttachmentSync,
       environment: getSyncEnvironment(),
-      repairRecordService: localRepairRecordService,
+      repairRecordService,
       attachmentStorageService: localAttachmentStorageService,
     })
 
@@ -482,7 +523,7 @@ function App() {
               <p className="eyebrow">{selectedRecord ? getRepairStatusLabel(selectedRecord) : '新增案件'}</p>
               <h2>{selectedRecord?.serialNumber || '建立維修紀錄'}</h2>
             </div>
-            <button type="button" className="primary-action" onClick={saveRecord} disabled={completed}>
+            <button type="button" className="primary-action" onClick={() => void saveRecord()} disabled={completed}>
               儲存
             </button>
           </div>
@@ -794,6 +835,19 @@ function App() {
       ) : null}
     </main>
   )
+}
+
+function buildSaveErrorMessage(error: unknown): string {
+  const baseMessage = error instanceof Error ? error.message : '請確認 Firestore 設定。'
+
+  if (!isFirebaseConfigured()) {
+    return `儲存失敗：${baseMessage}`
+  }
+
+  const currentUser = getFirebaseAuth().currentUser
+  const email = currentUser?.email ?? '未取得 Firebase Auth email'
+
+  return `儲存失敗：${baseMessage}｜Firebase email: ${email}｜project: ${appConfig.firebase.projectId}`
 }
 
 export default App

@@ -1,7 +1,7 @@
 {
   "name": "維修紀錄系統",
   "short_name": "維修紀錄",
-  "description": "維修案件、附件、同步與匯出的 PWA 工具",
+  "description": "維修紀錄、附件管理、同步與匯出工具",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f5f7fb",

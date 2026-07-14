@@ -1,3 +1,7 @@
+import { GoogleAuthProvider, signInWithCredential, signOut } from 'firebase/auth'
+import { isFirebaseConfigured } from '../config/appConfig'
+import { getFirebaseAuth } from '../services/firebaseClient'
+
 export interface AuthUser {
   id: string
   name: string
@@ -90,6 +94,10 @@ export function saveAuthUser(user: AuthUser): void {
 export function clearStoredAuthUser(): void {
   localStorage.removeItem(AUTH_STORAGE_KEY)
   window.google?.accounts.id.disableAutoSelect()
+
+  if (isFirebaseConfigured()) {
+    void signOut(getFirebaseAuth())
+  }
 }
 
 export async function signInWithGoogle(clientId: string): Promise<AuthUser> {
@@ -110,9 +118,7 @@ export async function signInWithGoogle(clientId: string): Promise<AuthUser> {
       client_id: clientId,
       callback(response) {
         window.clearTimeout(timeoutId)
-        const user = parseCredential(response.credential)
-        saveAuthUser(user)
-        resolve(user)
+        void buildSignedInUser(response.credential).then(resolve).catch(reject)
       },
       auto_select: false,
       cancel_on_tap_outside: true,
@@ -150,13 +156,9 @@ export async function renderGoogleSignInButton(
   window.google?.accounts.id.initialize({
     client_id: clientId,
     callback(response) {
-      try {
-        const user = parseCredential(response.credential)
-        saveAuthUser(user)
-        onSuccess(user)
-      } catch (error) {
+      void buildSignedInUser(response.credential).then(onSuccess).catch((error: unknown) => {
         onError(error instanceof Error ? error.message : 'Google 登入憑證解析失敗。')
-      }
+      })
     },
     auto_select: false,
     cancel_on_tap_outside: true,
@@ -197,6 +199,18 @@ function loadGoogleIdentityServices(): Promise<void> {
     script.onerror = () => reject(new Error('無法載入 Google 登入服務。'))
     document.head.append(script)
   })
+}
+
+async function buildSignedInUser(credential: string): Promise<AuthUser> {
+  const user = parseCredential(credential)
+
+  if (isFirebaseConfigured()) {
+    await signInWithCredential(getFirebaseAuth(), GoogleAuthProvider.credential(credential))
+  }
+
+  saveAuthUser(user)
+
+  return user
 }
 
 function parseCredential(credential: string): AuthUser {

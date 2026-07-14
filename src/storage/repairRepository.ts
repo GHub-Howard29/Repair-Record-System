@@ -40,11 +40,13 @@ export function sortRepairRecords(records: RepairRecord[]): RepairRecord[] {
 }
 
 export const localRepairRecordService: RepairRecordService = {
-  list: loadRepairRecords,
-  save(record) {
+  async list() {
+    return loadRepairRecords()
+  },
+  async save(record) {
     return upsertRepairRecord(loadRepairRecords(), record)
   },
-  replaceAll(records) {
+  async replaceAll(records) {
     saveRepairRecords(records)
     return sortRepairRecords(records)
   },

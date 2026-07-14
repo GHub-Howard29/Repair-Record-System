@@ -9,10 +9,17 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
       scope: import.meta.env.BASE_URL,
     })
   })
+}
+
+if ('serviceWorker' in navigator && import.meta.env.DEV) {
+  void navigator.serviceWorker.getRegistrations().then((registrations) =>
+    Promise.all(registrations.map((registration) => registration.unregister())),
+  )
+  void caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
 }
