@@ -12,6 +12,7 @@
 - Phase 5 本機搜尋已補上：姓名、製造號碼、回送地點、年月與故障分類即時篩選。
 - Phase 6 瀏覽器匯出已補上：單筆列印頁面可另存 PDF、全部資料 CSV 可用 Excel 開啟。
 - 可替換式服務架構已補上：維修資料、附件儲存、匯出、同步佇列與同步 processor 皆有獨立介面或模組。
+- Firebase / Firestore 維修文字資料同步已串接，Google 登入、雲端寫入與跨電腦讀取已完成實機驗證。
 - PWA 基礎已建立：`manifest.webmanifest` 與 service worker。
 - PWA / 網頁圖示已由 `public/repair-system-icon-sheet.png` 裁切產生，包含 favicon、Apple touch icon、192/512 PWA icon 與分享縮圖。
 
@@ -92,10 +93,8 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 
 ## 下一步
 
-1. 以正式 `VITE_GOOGLE_CLIENT_ID` 驗證 Google OAuth 登入流程。
-2. push 到 `main`，驗證 GitHub Pages Actions 部署。
-3. 建立 Firebase project 與 Firestore，填入 `VITE_FIREBASE_*` 欄位。
-4. 建立 Firestore repository，替換目前 `localStorage` 儲存。
-5. 建立 Google Drive 附件資料夾與上傳流程，替換目前本機附件暫存。
-6. 將瀏覽器列印/CSV 匯出替換或擴充為正式 PDF 與 `.xlsx` 產出。
-7. 補維修紀錄、附件、同步與搜尋規則測試。
+1. 驗證 Firestore Rules 權限邊界：未授權帳號不可讀寫，刪除維修紀錄不可行。
+2. 若要發布或更新 GitHub Pages，將 Firebase / Drive 欄位補到 GitHub Actions secrets；這是部署設定確認，不是重新驗證已完成的 Firebase 功能。
+3. 建立 Firebase Functions 或等效後端代理，透過 Google Service Account 上傳附件到 Google Drive。
+4. 將瀏覽器列印/CSV 匯出替換或擴充為正式 PDF 與 `.xlsx` 產出。
+5. 補維修紀錄、附件、同步與搜尋規則測試。
