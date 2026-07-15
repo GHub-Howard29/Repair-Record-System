@@ -27,13 +27,13 @@ export const agentHandbook = {
   priorityHandoff: {
     companyComputer: [
       '已完成 Desktop OAuth Client 建立。',
-      '尚未取得主要 Drive 帳號 drive.file refresh token。',
-      '尚未設定 Firebase Secret Manager 的 5 個後端 Secrets。',
-      '尚未部署 Function 與啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true。',
+      '已完成取得主要 Drive 帳號 drive.file refresh token。',
+      '已完成 Firebase Blaze plan 升級與 Firebase Secret Manager 的 5 個後端 Secrets 設定。',
+      '已部署 uploadRepairAttachment Function，並已啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true。',
     ],
     homeComputer: [
-      '尚待確認 nvm-windows 安裝後新終端機可執行 nvm version。',
-      '尚待確認已切換 Node.js 22。',
+      '已完成 nvm-windows 安裝。',
+      '已完成使用 nvm 切換 Node.js 22。',
     ],
     validationPolicy: '已驗證事項記錄於交接文件；附件與多人整體流程待架構完成後一次驗證。',
   },

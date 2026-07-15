@@ -93,8 +93,4 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 
 ## 下一步
 
-1. **公司電腦優先**：取得主要 Drive 帳號 OAuth refresh token。
-2. **公司電腦優先**：在 Firebase Secret Manager 設定 5 個後端 Secrets。
-3. **公司電腦優先**：部署 Function 後再啟用 `VITE_ATTACHMENT_UPLOAD_ENABLED=true`。
-4. **家裡電腦優先**：安裝 nvm-windows 並切換 Node.js 22。
-5. 待上述整體架構完成後，再一次驗證離線照片、Drive 上傳、Firestore metadata 與多人流程。
+1. 驗證離線照片、Drive 上傳、Firestore metadata 與多人流程。
