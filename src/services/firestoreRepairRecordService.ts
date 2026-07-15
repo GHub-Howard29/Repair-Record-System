@@ -6,6 +6,18 @@ import type { RepairRecordService } from './repairRecordService'
 
 const REPAIR_RECORDS_COLLECTION = 'repairRecords'
 
+function toCloudRecord(record: RepairRecord): RepairRecord {
+  return {
+    ...record,
+    attachments: record.attachments.map((attachment) => {
+      const cloudAttachment = { ...attachment }
+      delete cloudAttachment.previewUrl
+
+      return cloudAttachment
+    }),
+  }
+}
+
 async function listRepairRecords(): Promise<RepairRecord[]> {
   const snapshot = await getDocs(collection(getFirebaseFirestore(), REPAIR_RECORDS_COLLECTION))
   const records = snapshot.docs.map((item) => item.data() as RepairRecord)
@@ -18,7 +30,7 @@ export const firestoreRepairRecordService: RepairRecordService = {
     return listRepairRecords()
   },
   async save(record) {
-    await setDoc(doc(getFirebaseFirestore(), REPAIR_RECORDS_COLLECTION, record.id), record)
+    await setDoc(doc(getFirebaseFirestore(), REPAIR_RECORDS_COLLECTION, record.id), toCloudRecord(record))
 
     return listRepairRecords()
   },
@@ -27,7 +39,7 @@ export const firestoreRepairRecordService: RepairRecordService = {
     const batch = writeBatch(db)
 
     records.forEach((record) => {
-      batch.set(doc(db, REPAIR_RECORDS_COLLECTION, record.id), record)
+      batch.set(doc(db, REPAIR_RECORDS_COLLECTION, record.id), toCloudRecord(record))
     })
 
     await batch.commit()

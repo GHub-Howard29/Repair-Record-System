@@ -17,6 +17,8 @@ export interface RepairAttachment {
   mimeType: string
   compressed: boolean
   previewUrl?: string
+  driveFileId?: string
+  driveUrl?: string
   syncStatus: SyncStatus
   createdAt: string
 }

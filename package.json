@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "deploy:check": "npm run lint && npm run build",
+    "deploy:check": "npm run runtime:check && npm run lint && npm run build",
+    "runtime:check": "node -e \"if (process.versions.node.split('.')[0] !== '22') { console.error('需要 Node.js 22；目前是 ' + process.version); process.exit(1) }\"",
+    "functions:install": "npm install --prefix functions",
+    "functions:check": "npm run --prefix functions runtime:check && npm run --prefix functions lint",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -24,6 +27,7 @@
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
+    "firebase-tools": "^15.23.0",
     "globals": "^17.7.0",
     "prettier": "^3.9.4",
     "typescript": "~6.0.2",

@@ -12,6 +12,7 @@ export const appConfig = {
       import.meta.env.VITE_GOOGLE_DRIVE_SCOPE?.trim() ??
       'https://www.googleapis.com/auth/drive.file',
   },
+  attachmentUploadEnabled: import.meta.env.VITE_ATTACHMENT_UPLOAD_ENABLED === 'true',
   authMode: import.meta.env.VITE_GOOGLE_CLIENT_ID ? 'google' : 'local',
 } as const
 
@@ -29,5 +30,5 @@ export function isFirebaseConfigured(): boolean {
 }
 
 export function isGoogleDriveConfigured(): boolean {
-  return Boolean(appConfig.googleDrive.folderId && appConfig.googleDrive.scope)
+  return Boolean(appConfig.attachmentUploadEnabled && appConfig.googleDrive.folderId && appConfig.googleDrive.scope)
 }

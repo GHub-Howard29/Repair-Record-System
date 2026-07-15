@@ -93,8 +93,8 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 
 ## 下一步
 
-1. 驗證 Firestore Rules 權限邊界：未授權帳號不可讀寫，刪除維修紀錄不可行。
-2. 若要發布或更新 GitHub Pages，將 Firebase / Drive 欄位補到 GitHub Actions secrets；這是部署設定確認，不是重新驗證已完成的 Firebase 功能。
-3. 建立 Firebase Functions 或等效後端代理，透過 Google Service Account 上傳附件到 Google Drive。
-4. 將瀏覽器列印/CSV 匯出替換或擴充為正式 PDF 與 `.xlsx` 產出。
-5. 補維修紀錄、附件、同步與搜尋規則測試。
+1. **公司電腦優先**：取得主要 Drive 帳號 OAuth refresh token。
+2. **公司電腦優先**：在 Firebase Secret Manager 設定 5 個後端 Secrets。
+3. **公司電腦優先**：部署 Function 後再啟用 `VITE_ATTACHMENT_UPLOAD_ENABLED=true`。
+4. **家裡電腦優先**：安裝 nvm-windows 並切換 Node.js 22。
+5. 待上述整體架構完成後，再一次驗證離線照片、Drive 上傳、Firestore metadata 與多人流程。

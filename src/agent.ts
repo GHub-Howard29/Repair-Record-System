@@ -1,6 +1,6 @@
 export const agentHandbook = {
   project: '維修紀錄系統',
-  currentPhase: 'Phase 3/4：附件管理與同步架構',
+  currentPhase: 'Phase 4.5：OAuth Drive 附件代理準備',
   sourceDocs: [
     'docs/01_需求分析.md',
     'docs/02_系統架構.md',
@@ -11,6 +11,7 @@ export const agentHandbook = {
     '送回日期填寫後，案件與附件皆進入唯讀鎖定。',
     '同一製造號碼不得同時存在兩筆未完成維修紀錄。',
     '文字資料優先同步；附件獨立同步並支援離線暫存。',
+    'Google Drive 不在前端持有 refresh token、client secret 或 Service Account 私鑰。',
   ],
   moduleMap: {
     auth: 'Google OAuth 登入、登出、登入狀態',
@@ -19,8 +20,22 @@ export const agentHandbook = {
     search: '關鍵字、日期、故障分類與歷史維修查詢',
     warranty: '出貨日期 + 1 年 + 30 天保固判斷',
     export: 'PDF 與 Excel 匯出',
-    sync: 'Firestore/Drive 同步、離線暫存與待同步管理',
+    sync: 'Firestore/Drive 同步、離線暫存、失敗重試與待同步管理',
+    backend: 'Firebase Functions callable uploadRepairAttachment；主要 Drive 帳號 OAuth refresh token',
     services: 'Firestore、Drive、匯出等可替換式外部服務介面',
   },
-  handoffDocs: ['docs/04_工作規範.md', 'docs/05_交接紀錄.md'],
+  priorityHandoff: {
+    companyComputer: [
+      '已完成 Desktop OAuth Client 建立。',
+      '尚未取得主要 Drive 帳號 drive.file refresh token。',
+      '尚未設定 Firebase Secret Manager 的 5 個後端 Secrets。',
+      '尚未部署 Function 與啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true。',
+    ],
+    homeComputer: [
+      '尚待確認 nvm-windows 安裝後新終端機可執行 nvm version。',
+      '尚待確認已切換 Node.js 22。',
+    ],
+    validationPolicy: '已驗證事項記錄於交接文件；附件與多人整體流程待架構完成後一次驗證。',
+  },
+  handoffDocs: ['docs/04_工作規範.md', 'docs/05_交接紀錄.md', 'docs/06_外部資源連結設定.md'],
 } as const

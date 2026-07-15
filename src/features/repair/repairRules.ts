@@ -56,10 +56,10 @@ export function parseFaultParts(text: string): string[] {
 
 export function toRepairFormValues(record?: RepairRecord): RepairFormValues {
   return {
-    receivedDate: record?.receivedDate ?? '',
+    receivedDate: record?.receivedDate ?? getLocalToday(),
     returnLocation: record?.returnLocation ?? '',
     customerName: record?.customerName ?? '',
-    serialNumber: record?.serialNumber ?? '',
+    serialNumber: record?.serialNumber ?? 'NIS-',
     shippedDate: record?.shippedDate ?? '',
     purchaseType: record?.purchaseType ?? '',
     repairDate: record?.repairDate ?? '',
@@ -78,6 +78,13 @@ export function toRepairFormValues(record?: RepairRecord): RepairFormValues {
         }, {}) ?? {},
     returnedDate: record?.returnedDate ?? '',
   }
+}
+
+function getLocalToday(): string {
+  const now = new Date()
+  const timezoneOffset = now.getTimezoneOffset() * 60_000
+
+  return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10)
 }
 
 export function buildRepairRecord(
