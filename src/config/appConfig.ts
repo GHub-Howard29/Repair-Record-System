@@ -10,7 +10,7 @@ export const appConfig = {
     folderId: import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID?.trim() ?? '',
     scope:
       import.meta.env.VITE_GOOGLE_DRIVE_SCOPE?.trim() ??
-      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive',
   },
   attachmentUploadEnabled: import.meta.env.VITE_ATTACHMENT_UPLOAD_ENABLED === 'true',
   authMode: import.meta.env.VITE_GOOGLE_CLIENT_ID ? 'google' : 'local',

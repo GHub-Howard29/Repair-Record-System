@@ -1,6 +1,6 @@
 export const agentHandbook = {
   project: '維修紀錄系統',
-  currentPhase: 'Phase 4.5：OAuth Drive 附件代理準備',
+  currentPhase: 'Phase 4.5：OAuth Drive 附件代理已部署，待實機驗收',
   sourceDocs: [
     'docs/01_需求分析.md',
     'docs/02_系統架構.md',
@@ -29,13 +29,13 @@ export const agentHandbook = {
       '已完成 Desktop OAuth Client 建立。',
       '已完成取得主要 Drive 帳號 drive.file refresh token。',
       '已完成 Firebase Blaze plan 升級與 Firebase Secret Manager 的 5 個後端 Secrets 設定。',
-      '已部署 uploadRepairAttachment Function，並已啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true。',
+      '已部署 uploadRepairAttachment Function，並已啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true；待以 drive scope refresh token 實測照片上傳。',
     ],
     homeComputer: [
       '已完成 nvm-windows 安裝。',
       '已完成使用 nvm 切換 Node.js 22。',
     ],
-    validationPolicy: '已驗證事項記錄於交接文件；附件與多人整體流程待架構完成後一次驗證。',
+    validationPolicy: '已驗證事項記錄於交接文件；本次附件草稿、照片說明、預覽、故障選項、同步提示與 Drive 上傳均待實機驗收。',
   },
   handoffDocs: ['docs/04_工作規範.md', 'docs/05_交接紀錄.md', 'docs/06_外部資源連結設定.md'],
 } as const

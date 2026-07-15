@@ -34,6 +34,7 @@ import {
   relabelAttachments,
   validateAttachmentFile,
 } from './features/attachment/attachmentRules'
+import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS } from './features/repair/repairOptions'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
 import { googleDriveAttachmentService } from './services/googleDriveAttachmentService'
 import { browserExportService } from './services/exportService'
@@ -44,6 +45,15 @@ import type { PurchaseType, RepairAttachment, RepairFormValues, RepairRecord } f
 const repairRecordService = isFirebaseConfigured() ? firestoreRepairRecordService : localRepairRecordService
 const attachmentStorageService = isGoogleDriveConfigured() ? googleDriveAttachmentService : localAttachmentStorageService
 
+function getSyncStatusLabel(status: 'local' | 'pending' | 'synced' | 'failed'): string {
+  return {
+    local: '保留在本機',
+    pending: '等待處理',
+    synced: '已完成',
+    failed: '同步失敗',
+  }[status]
+}
+
 function App() {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser())
   const [records, setRecords] = useState<RepairRecord[]>([])
@@ -51,14 +61,17 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selectedRecord = records.find((record) => record.id === selectedId)
   const [form, setForm] = useState<RepairFormValues>(() => toRepairFormValues())
+  const [draftAttachments, setDraftAttachments] = useState<RepairAttachment[]>([])
+  const [attachmentDescription, setAttachmentDescription] = useState<(typeof ATTACHMENT_DESCRIPTIONS)[number]>('維修前')
+  const [customAttachmentDescription, setCustomAttachmentDescription] = useState('')
   const [searchText, setSearchText] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [message, setMessage] = useState(
     isGoogleAuthConfigured() ? '請先以 Google 登入開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
   )
-  const [attachmentMessage, setAttachmentMessage] = useState('請先儲存維修紀錄，再新增附件。')
-  const [syncMessage, setSyncMessage] = useState('同步佇列會保留文字與附件待同步資料。')
+  const [attachmentMessage, setAttachmentMessage] = useState('可先加入照片，儲存維修單後會自動上傳。')
+  const [syncMessage, setSyncMessage] = useState('同步清單會保留維修單與照片，連線恢復後會再次送出。')
   const [exportMessage, setExportMessage] = useState('可匯出單筆維修紀錄或全部資料。')
   const [previewAttachment, setPreviewAttachment] = useState<RepairAttachment | null>(null)
   const [authMessage, setAuthMessage] = useState(
@@ -67,6 +80,11 @@ function App() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null)
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
+  const attachmentList = selectedRecord?.attachments ?? draftAttachments
+  const availableFaultParts = useMemo(
+    () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])).sort((a, b) => a.localeCompare(b)),
+    [formFaultParts],
+  )
   const serialHistory = useMemo(
     () =>
       records.filter(
@@ -94,6 +112,10 @@ function App() {
         a.localeCompare(b),
       ),
     [records],
+  )
+  const availableFaultCategories = useMemo(
+    () => Array.from(new Set([...DEFAULT_FAULT_CATEGORIES, ...faultCategories])).sort((a, b) => a.localeCompare(b)),
+    [faultCategories],
   )
   const filteredRecords = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase()
@@ -189,13 +211,15 @@ function App() {
     setSelectedId(null)
     setForm(toRepairFormValues())
     setMessage('新增維修紀錄：請完成收到日期、回送地點、製造號碼。')
-    setAttachmentMessage('請先儲存維修紀錄，再新增附件。')
+    setDraftAttachments([])
+    setAttachmentMessage('可先加入照片，儲存維修單後會自動上傳。')
     setPreviewAttachment(null)
   }
 
   function editRecord(record: RepairRecord) {
     setSelectedId(record.id)
     setForm(toRepairFormValues(record))
+    setDraftAttachments([])
     setMessage(isRepairCompleted(record) ? '此案件已完成，依規則只能檢視。' : '正在編輯維修中案件。')
     setAttachmentMessage(
       isRepairCompleted(record) ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。',
@@ -217,6 +241,17 @@ function App() {
     }))
   }
 
+  function toggleFaultPart(part: string) {
+    const nextParts = formFaultParts.includes(part)
+      ? formFaultParts.filter((item) => item !== part)
+      : [...formFaultParts, part]
+    updateForm('faultPartsText', nextParts.join('，'))
+  }
+
+  function getAttachmentDescription(): string {
+    return attachmentDescription === '其他' ? customAttachmentDescription.trim() || '其他' : attachmentDescription
+  }
+
   async function saveRecord() {
     if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setMessage('已完成案件不可修改，請建立新紀錄補充說明。')
@@ -235,23 +270,28 @@ function App() {
       return
     }
 
-    const nextRecord = buildRepairRecord(form, selectedRecord)
-    await persistRecord(nextRecord)
+    const builtRecord = buildRepairRecord(form, selectedRecord)
+    const nextRecord = {
+      ...builtRecord,
+      attachments: selectedRecord?.attachments ?? draftAttachments,
+    }
+    await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id))
+    setDraftAttachments([])
     setAttachmentMessage(nextRecord.returnedDate ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。')
   }
 
   async function addAttachment(files: FileList | null) {
-    if (!selectedRecord || !files?.[0]) {
+    if (!files?.[0]) {
       return
     }
 
-    if (isRepairCompleted(selectedRecord)) {
+    if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setAttachmentMessage('已完成案件不可異動附件。')
       return
     }
 
     const file = files[0]
-    const validationError = validateAttachmentFile(file, selectedRecord.attachments)
+    const validationError = validateAttachmentFile(file, attachmentList)
 
     if (validationError) {
       setAttachmentMessage(validationError)
@@ -259,14 +299,21 @@ function App() {
     }
 
     try {
-      const attachment = await createAttachmentFromFile(file, selectedRecord.attachments.length)
+      const attachment = await createAttachmentFromFile(file, getAttachmentDescription(), attachmentList.length)
+
+      if (!selectedRecord) {
+        setDraftAttachments((attachments) => [...attachments, attachment])
+        setAttachmentMessage('照片已加入維修單草稿；儲存後會自動上傳。')
+        return
+      }
+
       const nextRecord = {
         ...selectedRecord,
         attachments: [...selectedRecord.attachments, attachment],
         updatedAt: new Date().toISOString(),
       }
 
-      await persistRecord(nextRecord, attachment.id)
+      await persistRecord(nextRecord, [attachment.id])
       setAttachmentMessage(attachment.compressed ? '已自動壓縮照片，以符合系統限制。' : '附件已加入待同步清單。')
     } catch (error) {
       setAttachmentMessage(error instanceof Error ? error.message : '附件處理失敗。')
@@ -274,17 +321,17 @@ function App() {
   }
 
   async function replaceAttachment(attachmentId: string, files: FileList | null) {
-    if (!selectedRecord || !files?.[0]) {
+    if (!files?.[0]) {
       return
     }
 
-    if (isRepairCompleted(selectedRecord)) {
+    if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setAttachmentMessage('已完成案件不可異動附件。')
       return
     }
 
     const file = files[0]
-    const validationError = validateAttachmentFile(file, selectedRecord.attachments, true)
+    const validationError = validateAttachmentFile(file, attachmentList, true)
 
     if (validationError) {
       setAttachmentMessage(validationError)
@@ -292,8 +339,18 @@ function App() {
     }
 
     try {
-      const attachmentIndex = selectedRecord.attachments.findIndex((attachment) => attachment.id === attachmentId)
-      const attachment = await createAttachmentFromFile(file, attachmentIndex)
+      const attachmentIndex = attachmentList.findIndex((attachment) => attachment.id === attachmentId)
+      const attachment = await createAttachmentFromFile(file, getAttachmentDescription(), attachmentIndex)
+
+      if (!selectedRecord) {
+        setDraftAttachments((attachments) =>
+          attachments.map((current) => (current.id === attachmentId ? { ...attachment, id: attachmentId } : current)),
+        )
+        setPreviewAttachment(null)
+        setAttachmentMessage('草稿照片已更換，儲存後會自動上傳。')
+        return
+      }
+
       const nextRecord = {
         ...selectedRecord,
         attachments: selectedRecord.attachments.map((current) =>
@@ -302,7 +359,7 @@ function App() {
         updatedAt: new Date().toISOString(),
       }
 
-      await persistRecord(nextRecord, attachmentId)
+      await persistRecord(nextRecord, [attachmentId])
       setPreviewAttachment(null)
       setAttachmentMessage(attachment.compressed ? '已自動壓縮照片，以符合系統限制。' : '附件已更換並列入待同步。')
     } catch (error) {
@@ -311,12 +368,15 @@ function App() {
   }
 
   function removeAttachment(attachmentId: string) {
-    if (!selectedRecord) {
+    if (selectedRecord && isRepairCompleted(selectedRecord)) {
+      setAttachmentMessage('已完成案件不可刪除附件。')
       return
     }
 
-    if (isRepairCompleted(selectedRecord)) {
-      setAttachmentMessage('已完成案件不可刪除附件。')
+    if (!selectedRecord) {
+      setDraftAttachments((attachments) => attachments.filter((attachment) => attachment.id !== attachmentId))
+      setPreviewAttachment(null)
+      setAttachmentMessage('草稿照片已刪除。')
       return
     }
 
@@ -333,10 +393,13 @@ function App() {
     setAttachmentMessage('附件已刪除。')
   }
 
-  async function persistRecord(record: RepairRecord, attachmentId?: string) {
+  async function persistRecord(record: RepairRecord, attachmentIds: string[] = []) {
     const nextRecords = await localRepairRecordService.save(record)
     const nextTextTasks = enqueueRepairTextSync(syncTasks, record)
-    const nextTasks = attachmentId ? enqueueAttachmentSync(nextTextTasks, record.id, attachmentId) : nextTextTasks
+    const nextTasks = attachmentIds.reduce(
+      (tasks, attachmentId) => enqueueAttachmentSync(tasks, record.id, attachmentId),
+      nextTextTasks,
+    )
 
     setRecords(nextRecords)
     setSyncTasks(nextTasks)
@@ -373,7 +436,7 @@ function App() {
 
     setMessage(
       result.tasks.length > 0
-        ? `雲端同步失敗，但資料已安全保留在此設備。${result.message}`
+        ? `同步尚未完成，資料已保留在此設備。${result.message}`
         : '維修紀錄已儲存並自動同步至雲端。',
     )
   }
@@ -621,21 +684,34 @@ function App() {
             </label>
             <label>
               故障分類
-              <input
+              <select
                 value={form.faultCategory}
                 disabled={completed}
                 onChange={(event) => updateForm('faultCategory', event.target.value)}
-              />
+              >
+                <option value="">未選擇</option>
+                {availableFaultCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label className="wide-field">
+            <fieldset className="wide-field option-fieldset" disabled={completed}>
               故障零件
-              <input
-                value={form.faultPartsText}
-                disabled={completed}
-                placeholder="以逗號或換行分隔"
-                onChange={(event) => updateForm('faultPartsText', event.target.value)}
-              />
-            </label>
+              <div className="option-grid">
+                {availableFaultParts.map((part) => (
+                  <label key={part}>
+                    <input
+                      type="checkbox"
+                      checked={formFaultParts.includes(part)}
+                      onChange={() => toggleFaultPart(part)}
+                    />
+                    {part}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             {formFaultParts.length > 0 ? (
               <fieldset className="wide-field part-charge-grid" disabled={completed}>
                 <legend>零件收費</legend>
@@ -730,9 +806,9 @@ function App() {
             <p className="empty-state">
               待同步 {syncSummary.pending} 筆；失敗 {syncSummary.failed} 筆。
             </p>
-            <p className="mini-notice">{syncMessage}</p>
+            <p className={syncSummary.failed > 0 ? 'mini-notice warning' : 'mini-notice'}>{syncMessage}</p>
             {syncSummary.failed > 0 ? (
-              <p className="mini-notice warning">請在網路恢復正常連線時再次同步。</p>
+              <p className="mini-notice warning">同步未完成，請確認提示內容後再次同步。</p>
             ) : null}
             <button type="button" className="secondary-action" onClick={() => void runSyncQueue()}>
               {syncSummary.failed > 0 ? '再次同步' : '立即同步'}
@@ -741,7 +817,7 @@ function App() {
               {syncPlan.map((item) => (
                 <li key={item.target}>
                   <span>{item.title}</span>
-                  <small>{item.status}</small>
+                  <small>{getSyncStatusLabel(item.status)}</small>
                 </li>
               ))}
             </ul>
@@ -752,23 +828,46 @@ function App() {
             <p className={attachmentMessage.includes('不可') || attachmentMessage.includes('僅支援') ? 'mini-notice warning' : 'mini-notice'}>
               {attachmentMessage}
             </p>
-            {selectedRecord ? (
-              <>
-                <label className={completed || selectedRecord.attachments.length >= 5 ? 'file-action disabled' : 'file-action'}>
+            <fieldset className="attachment-description" disabled={completed}>
+              <legend>照片說明</legend>
+              <div className="option-grid">
+                {ATTACHMENT_DESCRIPTIONS.map((description) => (
+                  <label key={description}>
+                    <input
+                      type="radio"
+                      name="attachment-description"
+                      value={description}
+                      checked={attachmentDescription === description}
+                      onChange={() => setAttachmentDescription(description)}
+                    />
+                    {description}
+                  </label>
+                ))}
+              </div>
+              {attachmentDescription === '其他' ? (
+                <input
+                  value={customAttachmentDescription}
+                  placeholder="輸入照片說明"
+                  onChange={(event) => setCustomAttachmentDescription(event.target.value)}
+                />
+              ) : null}
+            </fieldset>
+            <>
+                <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
                   新增照片
                   <input
                     type="file"
                     accept="image/*"
-                    disabled={completed || selectedRecord.attachments.length >= 5}
+                    disabled={completed || attachmentList.length >= 5}
                     onChange={(event) => {
                       void addAttachment(event.target.files)
                       event.currentTarget.value = ''
                     }}
                   />
                 </label>
-                {selectedRecord.attachments.length > 0 ? (
+                {attachmentList.length > 0 ? (
                   <ul className="attachment-list">
-                    {selectedRecord.attachments.map((attachment, index) => (
+                    {attachmentList.map((attachment, index) => (
                       <li key={attachment.id}>
                         <button type="button" className="attachment-preview" onClick={() => setPreviewAttachment(attachment)}>
                           {attachment.previewUrl ? <img src={attachment.previewUrl} alt={attachment.label} /> : null}
@@ -798,12 +897,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="empty-state">尚無附件，可新增最多五張圖片。</p>
+                  <p className="empty-state">尚未加入照片，可新增最多五張圖片。</p>
                 )}
-              </>
-            ) : (
-              <p className="empty-state">請先儲存維修紀錄，再新增附件。</p>
-            )}
+            </>
           </section>
 
           <section>

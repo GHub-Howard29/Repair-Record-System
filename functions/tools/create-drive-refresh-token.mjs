@@ -14,7 +14,7 @@ const oauth2 = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 const authorizationUrl = oauth2.generateAuthUrl({
   access_type: 'offline',
   prompt: 'consent',
-  scope: ['https://www.googleapis.com/auth/drive.file'],
+  scope: ['https://www.googleapis.com/auth/drive'],
 })
 
 const server = http.createServer(async (request, response) => {

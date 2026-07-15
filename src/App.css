@@ -365,6 +365,39 @@
   gap: 8px;
 }
 
+.option-fieldset,
+.attachment-description {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.option-fieldset > legend,
+.attachment-description > legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+.option-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.option-grid label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 500;
+}
+
+.attachment-description {
+  margin-top: 12px;
+}
+
 .file-action,
 .text-action {
   display: inline-flex;

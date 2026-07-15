@@ -10,17 +10,17 @@ export interface SyncPlanItem {
 export const initialSyncPlan: SyncPlanItem[] = [
   {
     target: 'firestore',
-    title: '文字資料即時同步至 Google Firestore',
+    title: '維修單資料同步至雲端資料庫',
     status: 'pending',
   },
   {
     target: 'drive',
-    title: '照片附件依網路狀態同步至 Google Drive',
+    title: '維修照片上傳至 Google 雲端硬碟',
     status: 'local',
   },
   {
     target: 'local',
-    title: '離線與失敗資料保留於本機待同步清單',
+    title: '待處理資料保留在本機，恢復連線後重送',
     status: 'local',
   },
 ]
@@ -32,17 +32,17 @@ export function buildSyncPlan(tasks: SyncTask[]): SyncPlanItem[] {
   return [
     {
       target: 'firestore',
-      title: '文字資料即時同步至 Google Firestore',
+      title: '維修單資料同步至雲端資料庫',
       status: hasPendingText ? 'pending' : 'synced',
     },
     {
       target: 'drive',
-      title: '照片附件依網路狀態同步至 Google Drive',
+      title: '維修照片上傳至 Google 雲端硬碟',
       status: hasPendingAttachment ? 'pending' : 'local',
     },
     {
       target: 'local',
-      title: '離線與失敗資料保留於本機待同步清單',
+      title: '待處理資料保留在本機，恢復連線後重送',
       status: tasks.length > 0 ? 'pending' : 'synced',
     },
   ]

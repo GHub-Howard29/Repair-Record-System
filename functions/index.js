@@ -48,17 +48,28 @@ export const uploadRepairAttachment = onCall(
     )
     auth.setCredentials({ refresh_token: driveOauthRefreshToken.value() })
     const drive = google.drive({ version: 'v3', auth })
-    const uploaded = await drive.files.create({
-      requestBody: {
-        name: `${recordId}-${attachment.fileName}`,
-        parents: [driveFolderId.value()],
-      },
-      media: {
-        mimeType: attachment.mimeType,
-        body: Readable.from(buffer),
-      },
-      fields: 'id,webViewLink',
-    })
+    let uploaded
+
+    try {
+      uploaded = await drive.files.create({
+        requestBody: {
+          name: `${recordId}-${attachment.fileName}`,
+          parents: [driveFolderId.value()],
+        },
+        media: {
+          mimeType: attachment.mimeType,
+          body: Readable.from(buffer),
+        },
+        fields: 'id,webViewLink',
+      })
+    } catch (error) {
+      console.error('Google Drive upload failed', {
+        code: error?.code,
+        message: error?.message,
+        reason: error?.errors?.[0]?.reason,
+      })
+      throw new HttpsError('failed-precondition', '無法寫入 Google 雲端硬碟，請確認資料夾 ID、授權帳號與 Drive 權限。')
+    }
 
     if (!uploaded.data.id) {
       throw new HttpsError('internal', 'Google Drive 未回傳檔案 ID。')

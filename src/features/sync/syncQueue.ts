@@ -8,6 +8,7 @@ export interface SyncTask {
   recordId: string
   attachmentId?: string
   status: SyncStatus
+  error?: string
   createdAt: string
   updatedAt: string
 }
@@ -78,4 +79,3 @@ function upsertSyncTask(
 
   return saveSyncQueue(nextTasks)
 }
-

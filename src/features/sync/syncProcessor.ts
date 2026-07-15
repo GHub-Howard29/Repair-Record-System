@@ -56,8 +56,8 @@ export async function processSyncQueue(
 
       nextTasks = nextTasks.filter((item) => item.id !== task.id)
       completedCount += 1
-    } catch {
-      nextTasks = updateTaskStatus(nextTasks, task.id, 'failed')
+    } catch (error) {
+      nextTasks = updateTaskStatus(nextTasks, task.id, 'failed', getSyncErrorMessage(error))
     }
   }
 
@@ -122,12 +122,13 @@ function markTasks(tasks: SyncTask[], status: SyncTask['status']): SyncTask[] {
   }))
 }
 
-function updateTaskStatus(tasks: SyncTask[], taskId: string, status: SyncTask['status']): SyncTask[] {
+function updateTaskStatus(tasks: SyncTask[], taskId: string, status: SyncTask['status'], error?: string): SyncTask[] {
   return tasks.map((task) =>
     task.id === taskId
       ? {
           ...task,
           status,
+          error,
           updatedAt: new Date().toISOString(),
         }
       : task,
@@ -138,13 +139,21 @@ function buildResultMessage(completedCount: number, tasks: SyncTask[]): string {
   const failedCount = tasks.filter((task) => task.status === 'failed').length
 
   if (failedCount > 0) {
-    return `已同步 ${completedCount} 筆，${failedCount} 筆失敗，請稍後重試。`
+    const failedTask = tasks.find((task) => task.status === 'failed')
+    return `已完成 ${completedCount} 筆；${failedCount} 筆未完成。${failedTask?.error ?? '請稍後重試。'}`
   }
 
   if (tasks.length === 0) {
     return `同步完成，共處理 ${completedCount} 筆待同步資料。`
   }
 
-  return `已同步 ${completedCount} 筆；${tasks.length} 張照片已安全保留在本機，等待附件雲端上傳功能。`
+  return `已完成 ${completedCount} 筆；${tasks.length} 筆資料仍保留在本機，等待下次同步。`
 }
 
+function getSyncErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return '雲端服務暫時無法處理，請稍後再試。'
+}

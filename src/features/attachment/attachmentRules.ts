@@ -25,13 +25,13 @@ export function validateAttachmentFile(file: File, attachments: RepairAttachment
   return null
 }
 
-export async function createAttachmentFromFile(file: File, index: number): Promise<RepairAttachment> {
+export async function createAttachmentFromFile(file: File, label: string, index: number): Promise<RepairAttachment> {
   const compressedResult =
     file.size > MAX_ATTACHMENT_SIZE ? await compressImage(file, MAX_ATTACHMENT_SIZE) : await readFileAsDataUrl(file)
 
   return {
     id: crypto.randomUUID(),
-    label: getAttachmentLabel(index),
+    label: label.trim() || getAttachmentLabel(index),
     fileName: file.name,
     size: compressedResult.size,
     mimeType: compressedResult.mimeType,
@@ -43,10 +43,7 @@ export async function createAttachmentFromFile(file: File, index: number): Promi
 }
 
 export function relabelAttachments(attachments: RepairAttachment[]): RepairAttachment[] {
-  return attachments.map((attachment, index) => ({
-    ...attachment,
-    label: getAttachmentLabel(index),
-  }))
+  return attachments
 }
 
 interface AttachmentImageResult {
@@ -110,4 +107,3 @@ function estimateDataUrlSize(dataUrl: string): number {
 
   return Math.ceil((base64.length * 3) / 4)
 }
-

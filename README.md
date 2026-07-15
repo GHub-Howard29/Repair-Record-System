@@ -13,6 +13,7 @@
 - Phase 6 瀏覽器匯出已補上：單筆列印頁面可另存 PDF、全部資料 CSV 可用 Excel 開啟。
 - 可替換式服務架構已補上：維修資料、附件儲存、匯出、同步佇列與同步 processor 皆有獨立介面或模組。
 - Firebase / Firestore 維修文字資料同步已串接，Google 登入、雲端寫入與跨電腦讀取已完成實機驗證。
+- Drive 附件代理與草稿照片、照片說明、預覽、故障選項及同步提示已實作；Google Drive 照片上傳與上述介面流程尚待實機驗收，詳見 `docs/05_交接紀錄.md`。
 - PWA 基礎已建立：`manifest.webmanifest` 與 service worker。
 - PWA / 網頁圖示已由 `public/repair-system-icon-sheet.png` 裁切產生，包含 favicon、Apple touch icon、192/512 PWA icon 與分享縮圖。
 
