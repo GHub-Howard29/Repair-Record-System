@@ -590,20 +590,12 @@ function App() {
             <h2>維修紀錄統計</h2>
             <div className="stats-row">
               <div>
-                <span>{stats.total}</span>
-                <p>全部紀錄</p>
-              </div>
-              <div>
                 <span>{stats.active}</span>
                 <p>維修中</p>
               </div>
               <div>
                 <span>{stats.completed}</span>
                 <p>已完成</p>
-              </div>
-              <div>
-                <span>{stats.pendingSync}</span>
-                <p>待同步</p>
               </div>
             </div>
           </section>
