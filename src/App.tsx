@@ -69,6 +69,9 @@ function App() {
   const [dateFilter, setDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [recordStatusFilter, setRecordStatusFilter] = useState<'active' | 'completed' | ''>('')
+  const [mobileView, setMobileView] = useState<'records' | 'editor' | 'details'>('records')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true)
   const [message, setMessage] = useState(
     isGoogleAuthConfigured() ? '請先以 Google 登入開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
   )
@@ -144,9 +147,11 @@ function App() {
     async function loadRecords() {
       if (!user) {
         setRecords([])
+        setIsLoadingRecords(false)
         return
       }
 
+      setIsLoadingRecords(true)
       try {
         const cloudRecords = await repairRecordService.list()
         const localRecords = await localRepairRecordService.list()
@@ -194,6 +199,10 @@ function App() {
           setRecords(await localRepairRecordService.list())
           setMessage(error instanceof Error ? error.message : '資料載入失敗，請稍後再試。')
         }
+      } finally {
+        if (!ignore) {
+          setIsLoadingRecords(false)
+        }
       }
     }
 
@@ -236,6 +245,7 @@ function App() {
   }, [user])
 
   function startNewRecord() {
+    setMobileView('editor')
     setSelectedId(null)
     setForm(toRepairFormValues())
     setMessage('新增維修紀錄：請完成收到日期、回送地點、製造號碼。')
@@ -245,6 +255,7 @@ function App() {
   }
 
   function editRecord(record: RepairRecord) {
+    setMobileView('editor')
     setSelectedId(record.id)
     setForm(toRepairFormValues(record))
     setDraftAttachments([])
@@ -539,8 +550,17 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
+        <button
+          type="button"
+          className="menu-action"
+          aria-label="開啟功能選單"
+          onClick={() => setIsMobileMenuOpen(true)}
+        >
+          ☰
+        </button>
+        <div className="header-title">
           <h1>維修紀錄工作台</h1>
+          {isLoadingRecords ? <span className="loading-status">載入中</span> : null}
         </div>
         <div className="header-actions">
           {user.picture ? <img className="avatar" src={user.picture} alt="" /> : null}
@@ -550,8 +570,22 @@ function App() {
         </div>
       </header>
 
+      {isMobileMenuOpen ? <button type="button" className="mobile-menu-backdrop" aria-label="關閉功能選單" onClick={() => setIsMobileMenuOpen(false)} /> : null}
+      <nav className={isMobileMenuOpen ? 'mobile-menu open' : 'mobile-menu'} aria-label="功能選單">
+        <div className="mobile-menu-heading">功能選單</div>
+        <button type="button" onClick={() => { setMobileView('records'); setIsMobileMenuOpen(false) }}>
+          維修紀錄
+        </button>
+        <button type="button" onClick={() => { startNewRecord(); setIsMobileMenuOpen(false) }}>
+          新增維修紀錄
+        </button>
+        <button type="button" onClick={() => { setMobileView('details'); setIsMobileMenuOpen(false) }}>
+          同步與附件
+        </button>
+      </nav>
+
       <div className="workspace-grid">
-        <aside className="record-list" aria-label="維修紀錄列表">
+        <aside className={mobileView === 'records' ? 'record-list mobile-panel mobile-active' : 'record-list mobile-panel'} aria-label="維修紀錄列表">
           <section className="record-statistics" aria-label="維修紀錄統計">
             <h2>維修紀錄統計</h2>
             <div className="stats-row">
@@ -646,7 +680,7 @@ function App() {
           </section>
         </aside>
 
-        <section className="editor-panel">
+        <section className={mobileView === 'editor' ? 'editor-panel mobile-panel mobile-active' : 'editor-panel mobile-panel'}>
           <div className="panel-heading">
             <div>
               {selectedRecord ? <p className="eyebrow">{getRepairStatusLabel(selectedRecord)}</p> : null}
@@ -827,7 +861,7 @@ function App() {
           </form>
         </section>
 
-        <aside className="side-panel">
+        <aside className={mobileView === 'details' ? 'side-panel mobile-panel mobile-active' : 'side-panel mobile-panel'}>
           <section>
             <h2>收費摘要</h2>
             {selectedRecord ? (
