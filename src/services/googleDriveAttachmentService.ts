@@ -1,11 +1,12 @@
 import type { AttachmentStorageService } from './attachmentStorageService'
 import { httpsCallable } from 'firebase/functions'
 import { isGoogleDriveConfigured } from '../config/appConfig'
-import { getFirebaseFunctions } from './firebaseClient'
+import { getFirebaseFunctions, waitForFirebaseAuth } from './firebaseClient'
 
 export const googleDriveAttachmentService: AttachmentStorageService = {
   isCloudStorage: isGoogleDriveConfigured(),
   async upload(recordId, attachment) {
+    await waitForFirebaseAuth()
     const upload = httpsCallable<
       { recordId: string; attachment: typeof attachment },
       { attachmentId: string; driveFileId: string; driveUrl: string }

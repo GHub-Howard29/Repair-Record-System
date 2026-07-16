@@ -1,7 +1,7 @@
 import { collection, doc, getDocs, setDoc, writeBatch } from 'firebase/firestore'
 import { sortRepairRecords } from '../storage/repairRepository'
 import type { RepairRecord } from '../types/repair'
-import { getFirebaseFirestore } from './firebaseClient'
+import { getFirebaseFirestore, waitForFirebaseAuth } from './firebaseClient'
 import type { RepairRecordService } from './repairRecordService'
 
 const REPAIR_RECORDS_COLLECTION = 'repairRecords'
@@ -19,6 +19,7 @@ function toCloudRecord(record: RepairRecord): RepairRecord {
 }
 
 async function listRepairRecords(): Promise<RepairRecord[]> {
+  await waitForFirebaseAuth()
   const snapshot = await getDocs(collection(getFirebaseFirestore(), REPAIR_RECORDS_COLLECTION))
   const records = snapshot.docs.map((item) => item.data() as RepairRecord)
 
@@ -30,11 +31,15 @@ export const firestoreRepairRecordService: RepairRecordService = {
     return listRepairRecords()
   },
   async save(record) {
+    await waitForFirebaseAuth()
     await setDoc(doc(getFirebaseFirestore(), REPAIR_RECORDS_COLLECTION, record.id), toCloudRecord(record))
 
-    return listRepairRecords()
+    const cloudRecords = await listRepairRecords()
+
+    return cloudRecords.map((cloudRecord) => (cloudRecord.id === record.id ? record : cloudRecord))
   },
   async replaceAll(records) {
+    await waitForFirebaseAuth()
     const db = getFirebaseFirestore()
     const batch = writeBatch(db)
 

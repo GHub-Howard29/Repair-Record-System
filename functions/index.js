@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase-admin/app'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
-import { google } from 'googleapis'
 import { Readable } from 'node:stream'
 
 initializeApp()
@@ -28,10 +27,7 @@ export const uploadRepairAttachment = onCall(
       throw new HttpsError('unauthenticated', '請先登入再上傳附件。')
     }
 
-    const permittedEmails = allowedEmails.value()
-      .split(',')
-      .map((item) => item.trim().toLowerCase())
-      .filter(Boolean)
+    const permittedEmails = parseAllowedEmails(allowedEmails.value())
 
     if (!permittedEmails.includes(email.toLowerCase())) {
       throw new HttpsError('permission-denied', '此帳號沒有上傳附件的權限。')
@@ -42,6 +38,7 @@ export const uploadRepairAttachment = onCall(
 
     const base64 = attachment.previewUrl.split(',')[1]
     const buffer = Buffer.from(base64, 'base64')
+    const { google } = await import('googleapis')
     const auth = new google.auth.OAuth2(
       driveOauthClientId.value(),
       driveOauthClientSecret.value(),
@@ -99,4 +96,24 @@ function validateUpload(recordId, attachment) {
   if (attachment.size > 1_500_000 || !attachment.previewUrl.startsWith(`data:${attachment.mimeType};base64,`)) {
     throw new HttpsError('invalid-argument', '附件大小或內容不正確。')
   }
+}
+
+function parseAllowedEmails(value) {
+  try {
+    const parsed = JSON.parse(value)
+
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item) => typeof item === 'string')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    }
+  } catch {
+    // 支援以逗號分隔的既有 Secret 格式。
+  }
+
+  return value
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
 }

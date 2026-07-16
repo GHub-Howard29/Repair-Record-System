@@ -15,6 +15,7 @@ import {
   enqueueAttachmentSync,
   enqueueRepairTextSync,
   loadSyncQueue,
+  saveSyncQueue,
   summarizeSyncQueue,
   type SyncTask,
 } from './features/sync/syncQueue'
@@ -146,20 +147,43 @@ function App() {
         const cloudRecords = await repairRecordService.list()
         const localRecords = await localRepairRecordService.list()
         const recordsById = new Map(cloudRecords.map((record) => [record.id, record]))
+        const queuedTasks = loadSyncQueue()
 
         localRecords.forEach((localRecord) => {
+          const hasPendingTextSync = queuedTasks.some(
+            (task) => task.kind === 'repair-text' && task.recordId === localRecord.id,
+          )
+          const hasPendingAttachmentSync = queuedTasks.some(
+            (task) => task.kind === 'attachment' && task.recordId === localRecord.id,
+          )
           const cloudRecord = recordsById.get(localRecord.id)
 
-          if (!cloudRecord || localRecord.updatedAt >= cloudRecord.updatedAt) {
+          if (hasPendingTextSync && (!cloudRecord || localRecord.updatedAt >= cloudRecord.updatedAt)) {
             recordsById.set(localRecord.id, localRecord)
+            return
+          }
+
+          if (cloudRecord && hasPendingAttachmentSync) {
+            const localAttachments = new Map(localRecord.attachments.map((attachment) => [attachment.id, attachment]))
+
+            recordsById.set(localRecord.id, {
+              ...cloudRecord,
+              attachments: cloudRecord.attachments.map((attachment) => ({
+                ...attachment,
+                previewUrl: localAttachments.get(attachment.id)?.previewUrl,
+                syncStatus: localAttachments.get(attachment.id)?.syncStatus ?? attachment.syncStatus,
+              })),
+            })
           }
         })
         const nextRecords = Array.from(recordsById.values())
+        const nextTasks = saveSyncQueue(queuedTasks.filter((task) => recordsById.has(task.recordId)))
 
         await localRepairRecordService.replaceAll(nextRecords)
 
         if (!ignore) {
           setRecords(nextRecords)
+          setSyncTasks(nextTasks)
         }
       } catch (error) {
         if (!ignore) {
