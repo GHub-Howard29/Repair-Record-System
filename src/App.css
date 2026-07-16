@@ -19,11 +19,6 @@
   box-shadow: 0 18px 48px rgba(29, 45, 68, 0.12);
 }
 
-.login-copy {
-  margin: 0 0 24px;
-  color: #5c667a;
-}
-
 .auth-hint {
   margin: 0 0 16px;
   padding: 10px 12px;
@@ -62,6 +57,7 @@
 
 .header-actions {
   gap: 12px;
+  margin-left: auto;
 }
 
 .avatar {
@@ -582,7 +578,7 @@
 
   .app-header {
     align-items: flex-start;
-    flex-direction: column;
+    flex-direction: row;
   }
 
   .stats-row,

@@ -518,8 +518,7 @@ function App() {
       <main className="login-shell">
         <section className="login-panel">
           <p className="eyebrow">Repair Record System</p>
-          <h1>維修紀錄系統</h1>
-          <p className="login-copy">依文件規劃建立的 Phase 1 基礎：登入、列表、建立與編輯維修紀錄。</p>
+          <h1>開心農場維修紀錄系統</h1>
           <p className="auth-hint">{authMessage}</p>
           {isGoogleAuthConfigured() ? (
             <div className="google-button-wrap" ref={googleButtonRef} />
@@ -537,12 +536,10 @@ function App() {
     <main className="app-shell">
       <header className="app-header">
         <div>
-          <p className="eyebrow">Phase 1</p>
           <h1>維修紀錄工作台</h1>
         </div>
         <div className="header-actions">
           {user.picture ? <img className="avatar" src={user.picture} alt="" /> : null}
-          <span>{user.name}</span>
           <button type="button" className="ghost-action" onClick={handleLogout}>
             登出
           </button>
