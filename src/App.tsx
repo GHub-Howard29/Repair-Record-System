@@ -68,6 +68,7 @@ function App() {
   const [searchText, setSearchText] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [recordStatusFilter, setRecordStatusFilter] = useState<'active' | 'completed' | ''>('')
   const [message, setMessage] = useState(
     isGoogleAuthConfigured() ? '請先以 Google 登入開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
   )
@@ -129,10 +130,13 @@ function App() {
         record.returnLocation.toLowerCase().includes(normalizedSearch)
       const matchesDate = !dateFilter || record.receivedDate.startsWith(dateFilter)
       const matchesCategory = !categoryFilter || record.faultCategory === categoryFilter
+      const matchesStatus =
+        !recordStatusFilter ||
+        (recordStatusFilter === 'active' ? !isRepairCompleted(record) : isRepairCompleted(record))
 
-      return matchesText && matchesDate && matchesCategory
+      return matchesText && matchesDate && matchesCategory && matchesStatus
     })
-  }, [categoryFilter, dateFilter, records, searchText])
+  }, [categoryFilter, dateFilter, recordStatusFilter, records, searchText])
 
   useEffect(() => {
     let ignore = false
@@ -546,32 +550,31 @@ function App() {
         </div>
       </header>
 
-      <section className="stats-row" aria-label="維修紀錄統計">
-        <div>
-          <span>{stats.total}</span>
-          <p>全部紀錄</p>
-        </div>
-        <div>
-          <span>{stats.active}</span>
-          <p>維修中</p>
-        </div>
-        <div>
-          <span>{stats.completed}</span>
-          <p>已完成</p>
-        </div>
-        <div>
-          <span>{stats.pendingSync}</span>
-          <p>待同步</p>
-        </div>
-      </section>
-
       <div className="workspace-grid">
         <aside className="record-list" aria-label="維修紀錄列表">
+          <section className="record-statistics" aria-label="維修紀錄統計">
+            <h2>維修紀錄統計</h2>
+            <div className="stats-row">
+              <div>
+                <span>{stats.total}</span>
+                <p>全部紀錄</p>
+              </div>
+              <div>
+                <span>{stats.active}</span>
+                <p>維修中</p>
+              </div>
+              <div>
+                <span>{stats.completed}</span>
+                <p>已完成</p>
+              </div>
+              <div>
+                <span>{stats.pendingSync}</span>
+                <p>待同步</p>
+              </div>
+            </div>
+          </section>
           <div className="list-title">
-            <h2>維修紀錄</h2>
-            <button type="button" className="icon-action" onClick={startNewRecord} title="新增維修紀錄">
-              +
-            </button>
+            <h2>維修紀錄查詢</h2>
           </div>
           <div className="search-panel">
             <label>
@@ -595,6 +598,14 @@ function App() {
                     {category}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label>
+              維修狀態
+              <select value={recordStatusFilter} onChange={(event) => setRecordStatusFilter(event.target.value as 'active' | 'completed' | '')}>
+                <option value="">全部</option>
+                <option value="active">維修中</option>
+                <option value="completed">已完成</option>
               </select>
             </label>
           </div>
@@ -621,17 +632,34 @@ function App() {
               ))}
             </ul>
           )}
+          <section className="export-section">
+            <h2>匯出</h2>
+            <p className="mini-notice">{exportMessage}</p>
+            <div className="export-actions">
+              <button type="button" className="secondary-action" onClick={() => void exportSelectedRecordPdf()}>
+                匯出單筆 PDF
+              </button>
+              <button type="button" className="secondary-action" onClick={() => void exportAllRecordsExcel()}>
+                匯出全部 Excel
+              </button>
+            </div>
+          </section>
         </aside>
 
         <section className="editor-panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">{selectedRecord ? getRepairStatusLabel(selectedRecord) : '新增案件'}</p>
-              <h2>{selectedRecord?.serialNumber || '建立維修紀錄'}</h2>
+              {selectedRecord ? <p className="eyebrow">{getRepairStatusLabel(selectedRecord)}</p> : null}
+              <h2>{selectedRecord?.serialNumber || '新增維修紀錄'}</h2>
             </div>
-            <button type="button" className="primary-action" onClick={() => void saveRecord()} disabled={completed}>
-              儲存
-            </button>
+            <div className="editor-actions">
+              <button type="button" className="ghost-action" onClick={startNewRecord}>
+                新增
+              </button>
+              <button type="button" className="primary-action" onClick={() => void saveRecord()} disabled={completed}>
+                儲存
+              </button>
+            </div>
           </div>
 
           <p className={message.includes('不可') || message.includes('請完成') ? 'notice warning' : 'notice'}>
@@ -939,18 +967,6 @@ function App() {
             )}
           </section>
 
-          <section>
-            <h2>匯出</h2>
-            <p className="mini-notice">{exportMessage}</p>
-            <div className="export-actions">
-              <button type="button" className="secondary-action" onClick={() => void exportSelectedRecordPdf()}>
-                匯出單筆 PDF
-              </button>
-              <button type="button" className="secondary-action" onClick={() => void exportAllRecordsExcel()}>
-                匯出全部 Excel
-              </button>
-            </div>
-          </section>
         </aside>
       </div>
       {previewAttachment?.previewUrl ? (
