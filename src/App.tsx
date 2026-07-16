@@ -580,7 +580,7 @@ function App() {
           維修紀錄
         </button>
         <button type="button" onClick={() => { setMobileView('details'); setIsMobileMenuOpen(false) }}>
-          同步與附件
+          其他資訊
         </button>
       </nav>
 
@@ -851,6 +851,82 @@ function App() {
               />
             </label>
           </form>
+          <section className="attachment-section">
+            <h2>附件</h2>
+            <p className={attachmentMessage.includes('不可') || attachmentMessage.includes('僅支援') ? 'mini-notice warning' : 'mini-notice'}>
+              {attachmentMessage}
+            </p>
+            <fieldset className="attachment-description" disabled={completed}>
+              <legend>照片說明</legend>
+              <div className="option-grid">
+                {ATTACHMENT_DESCRIPTIONS.map((description) => (
+                  <label key={description}>
+                    <input
+                      type="radio"
+                      name="attachment-description"
+                      value={description}
+                      checked={attachmentDescription === description}
+                      onChange={() => setAttachmentDescription(description)}
+                    />
+                    {description}
+                  </label>
+                ))}
+              </div>
+              {attachmentDescription === '其他' ? (
+                <input
+                  value={customAttachmentDescription}
+                  placeholder="輸入照片說明"
+                  onChange={(event) => setCustomAttachmentDescription(event.target.value)}
+                />
+              ) : null}
+            </fieldset>
+            <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+              新增照片
+              <input
+                type="file"
+                accept="image/*"
+                disabled={completed || attachmentList.length >= 5}
+                onChange={(event) => {
+                  void addAttachment(event.target.files)
+                  event.currentTarget.value = ''
+                }}
+              />
+            </label>
+            {attachmentList.length > 0 ? (
+              <ul className="attachment-list">
+                {attachmentList.map((attachment, index) => (
+                  <li key={attachment.id}>
+                    <button type="button" className="attachment-preview" onClick={() => setPreviewAttachment(attachment)}>
+                      {attachment.previewUrl ? <img src={attachment.previewUrl} alt={attachment.label} /> : null}
+                      <span>{attachment.label || getAttachmentLabel(index)}</span>
+                    </button>
+                    <small>
+                      {(attachment.size / 1024).toFixed(0)} KB · {attachment.syncStatus}
+                    </small>
+                    <div className="attachment-actions">
+                      <label className={completed ? 'text-action disabled' : 'text-action'}>
+                        更換
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={completed}
+                          onChange={(event) => {
+                            void replaceAttachment(attachment.id, event.target.files)
+                            event.currentTarget.value = ''
+                          }}
+                        />
+                      </label>
+                      <button type="button" className="text-action danger" disabled={completed} onClick={() => removeAttachment(attachment.id)}>
+                        刪除
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="empty-state">尚未加入照片，可新增最多五張圖片。</p>
+            )}
+          </section>
         </section>
 
         <aside className={mobileView === 'details' ? 'side-panel mobile-panel mobile-active' : 'side-panel mobile-panel'}>
@@ -896,85 +972,6 @@ function App() {
                 </li>
               ))}
             </ul>
-          </section>
-
-          <section>
-            <h2>附件</h2>
-            <p className={attachmentMessage.includes('不可') || attachmentMessage.includes('僅支援') ? 'mini-notice warning' : 'mini-notice'}>
-              {attachmentMessage}
-            </p>
-            <fieldset className="attachment-description" disabled={completed}>
-              <legend>照片說明</legend>
-              <div className="option-grid">
-                {ATTACHMENT_DESCRIPTIONS.map((description) => (
-                  <label key={description}>
-                    <input
-                      type="radio"
-                      name="attachment-description"
-                      value={description}
-                      checked={attachmentDescription === description}
-                      onChange={() => setAttachmentDescription(description)}
-                    />
-                    {description}
-                  </label>
-                ))}
-              </div>
-              {attachmentDescription === '其他' ? (
-                <input
-                  value={customAttachmentDescription}
-                  placeholder="輸入照片說明"
-                  onChange={(event) => setCustomAttachmentDescription(event.target.value)}
-                />
-              ) : null}
-            </fieldset>
-            <>
-                <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
-                  新增照片
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={completed || attachmentList.length >= 5}
-                    onChange={(event) => {
-                      void addAttachment(event.target.files)
-                      event.currentTarget.value = ''
-                    }}
-                  />
-                </label>
-                {attachmentList.length > 0 ? (
-                  <ul className="attachment-list">
-                    {attachmentList.map((attachment, index) => (
-                      <li key={attachment.id}>
-                        <button type="button" className="attachment-preview" onClick={() => setPreviewAttachment(attachment)}>
-                          {attachment.previewUrl ? <img src={attachment.previewUrl} alt={attachment.label} /> : null}
-                          <span>{attachment.label || getAttachmentLabel(index)}</span>
-                        </button>
-                        <small>
-                          {(attachment.size / 1024).toFixed(0)} KB · {attachment.syncStatus}
-                        </small>
-                        <div className="attachment-actions">
-                          <label className={completed ? 'text-action disabled' : 'text-action'}>
-                            更換
-                            <input
-                              type="file"
-                              accept="image/*"
-                              disabled={completed}
-                              onChange={(event) => {
-                                void replaceAttachment(attachment.id, event.target.files)
-                                event.currentTarget.value = ''
-                              }}
-                            />
-                          </label>
-                          <button type="button" className="text-action danger" disabled={completed} onClick={() => removeAttachment(attachment.id)}>
-                            刪除
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="empty-state">尚未加入照片，可新增最多五張圖片。</p>
-                )}
-            </>
           </section>
 
           <section>
