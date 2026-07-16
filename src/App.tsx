@@ -573,11 +573,11 @@ function App() {
       {isMobileMenuOpen ? <button type="button" className="mobile-menu-backdrop" aria-label="關閉功能選單" onClick={() => setIsMobileMenuOpen(false)} /> : null}
       <nav className={isMobileMenuOpen ? 'mobile-menu open' : 'mobile-menu'} aria-label="功能選單">
         <div className="mobile-menu-heading">功能選單</div>
-        <button type="button" onClick={() => { setMobileView('records'); setIsMobileMenuOpen(false) }}>
-          維修紀錄
-        </button>
         <button type="button" onClick={() => { startNewRecord(); setIsMobileMenuOpen(false) }}>
           新增維修紀錄
+        </button>
+        <button type="button" onClick={() => { setMobileView('records'); setIsMobileMenuOpen(false) }}>
+          維修紀錄
         </button>
         <button type="button" onClick={() => { setMobileView('details'); setIsMobileMenuOpen(false) }}>
           同步與附件
