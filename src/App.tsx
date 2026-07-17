@@ -976,11 +976,32 @@ function App() {
             ) : (
               <p className="empty-state">尚未加入照片，可新增最多五張圖片。</p>
             )}
+            <section className="charge-summary mobile-charge-summary">
+              <h2>收費摘要</h2>
+              {selectedRecord ? (
+                <>
+                  <ul className="charge-list">
+                    {selectedRecord.charges.map((charge) => (
+                      <li key={charge.id}>
+                        <span>{charge.label}</span>
+                        <strong>{charge.amount.toLocaleString()} 元</strong>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="total-row">
+                    <span>總金額</span>
+                    <strong>{sumCharges(selectedRecord.charges).toLocaleString()} 元</strong>
+                  </div>
+                </>
+              ) : (
+                <p className="empty-state">儲存後會產生檢修測試費、運費與零件費用。</p>
+              )}
+            </section>
           </section>
         </section>
 
         <aside className={mobileView === 'details' ? 'side-panel mobile-panel mobile-active' : 'side-panel mobile-panel'}>
-          <section>
+          <section className="charge-summary desktop-charge-summary">
             <h2>收費摘要</h2>
             {selectedRecord ? (
               <>

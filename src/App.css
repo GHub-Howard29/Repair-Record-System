@@ -158,6 +158,21 @@
   color: #172033;
 }
 
+.mobile-charge-summary {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #edf1f7;
+}
+
+.mobile-charge-summary h2 {
+  margin: 0;
+  color: #172033;
+}
+
+.mobile-charge-summary {
+  display: none;
+}
+
 .stats-row div,
 .record-list,
 .editor-panel,
@@ -759,6 +774,14 @@
 
   .side-panel.mobile-panel.mobile-active {
     display: grid;
+  }
+
+  .desktop-charge-summary {
+    display: none;
+  }
+
+  .mobile-charge-summary {
+    display: block;
   }
 
   .repair-form {
