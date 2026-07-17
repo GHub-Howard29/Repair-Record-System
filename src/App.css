@@ -147,6 +147,18 @@
   border-top: 1px solid #edf1f7;
 }
 
+.mobile-history-section {
+  display: none;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #edf1f7;
+}
+
+.mobile-history-section h2 {
+  margin: 0;
+  color: #172033;
+}
+
 .attachment-section {
   margin-top: 20px;
   padding-top: 16px;
@@ -781,6 +793,14 @@
   }
 
   .mobile-charge-summary {
+    display: block;
+  }
+
+  .desktop-history-section {
+    display: none;
+  }
+
+  .mobile-history-section {
     display: block;
   }
 

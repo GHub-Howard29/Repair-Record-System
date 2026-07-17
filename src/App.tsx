@@ -79,6 +79,7 @@ function App() {
   const [endDateFilter, setEndDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [recordStatusFilter, setRecordStatusFilter] = useState<'active' | 'completed' | ''>('active')
+  const [isStatusFilterExplicit, setIsStatusFilterExplicit] = useState(false)
   const [mobileView, setMobileView] = useState<'records' | 'editor' | 'details'>('records')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
@@ -136,13 +137,22 @@ function App() {
       const matchesEndDate = !endDateFilter || record.receivedDate <= endDateFilter
       const matchesCategory = !categoryFilter || record.faultCategory === categoryFilter
       const matchesStatus =
-        hasRecordSearch ||
+        (hasRecordSearch && !isStatusFilterExplicit) ||
         !recordStatusFilter ||
         (recordStatusFilter === 'active' ? !isRepairCompleted(record) : isRepairCompleted(record))
 
       return matchesText && matchesStartDate && matchesEndDate && matchesCategory && matchesStatus
     })
-  }, [categoryFilter, endDateFilter, hasRecordSearch, recordStatusFilter, records, searchText, startDateFilter])
+  }, [
+    categoryFilter,
+    endDateFilter,
+    hasRecordSearch,
+    isStatusFilterExplicit,
+    recordStatusFilter,
+    records,
+    searchText,
+    startDateFilter,
+  ])
 
   useEffect(() => {
     let ignore = false
@@ -275,6 +285,11 @@ function App() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function selectRecordStatus(status: 'active' | 'completed') {
+    setRecordStatusFilter((current) => (isStatusFilterExplicit && current === status ? '' : status))
+    setIsStatusFilterExplicit(true)
+  }
+
   function updatePartCharge(part: string, amount: number) {
     setForm((current) => ({
       ...current,
@@ -319,9 +334,19 @@ function App() {
       ...builtRecord,
       attachments: selectedRecord?.attachments ?? draftAttachments,
     }
-    await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id))
-    setDraftAttachments([])
-    setAttachmentMessage(nextRecord.returnedDate ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。')
+    try {
+      await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id))
+      setDraftAttachments([])
+      setAttachmentMessage(nextRecord.returnedDate ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。')
+
+      if (nextRecord.returnedDate) {
+        setRecordStatusFilter('completed')
+        setIsStatusFilterExplicit(true)
+        setMessage('案件已完成並儲存，已切換至已完成清單。')
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? `儲存失敗：${error.message}` : '儲存失敗，請稍後再試。')
+    }
   }
 
   async function addAttachment(files: FileList | null) {
@@ -596,18 +621,18 @@ function App() {
             <div className="stats-row">
               <button
                 type="button"
-                className={!hasRecordSearch && recordStatusFilter === 'active' ? 'stat-filter active' : 'stat-filter'}
-                aria-pressed={!hasRecordSearch && recordStatusFilter === 'active'}
-                onClick={() => setRecordStatusFilter(recordStatusFilter === 'active' ? '' : 'active')}
+                className={(!hasRecordSearch || isStatusFilterExplicit) && recordStatusFilter === 'active' ? 'stat-filter active' : 'stat-filter'}
+                aria-pressed={(!hasRecordSearch || isStatusFilterExplicit) && recordStatusFilter === 'active'}
+                onClick={() => selectRecordStatus('active')}
               >
                 <span>{stats.active}</span>
                 <p>維修中</p>
               </button>
               <button
                 type="button"
-                className={!hasRecordSearch && recordStatusFilter === 'completed' ? 'stat-filter active' : 'stat-filter'}
-                aria-pressed={!hasRecordSearch && recordStatusFilter === 'completed'}
-                onClick={() => setRecordStatusFilter(recordStatusFilter === 'completed' ? '' : 'completed')}
+                className={(!hasRecordSearch || isStatusFilterExplicit) && recordStatusFilter === 'completed' ? 'stat-filter active' : 'stat-filter'}
+                aria-pressed={(!hasRecordSearch || isStatusFilterExplicit) && recordStatusFilter === 'completed'}
+                onClick={() => selectRecordStatus('completed')}
               >
                 <span>{stats.completed}</span>
                 <p>已完成</p>
@@ -623,20 +648,43 @@ function App() {
               <input
                 value={searchText}
                 placeholder="姓名、製造號碼、回送地點"
-                onChange={(event) => setSearchText(event.target.value)}
+                onChange={(event) => {
+                  setSearchText(event.target.value)
+                  setIsStatusFilterExplicit(false)
+                }}
               />
             </label>
             <label>
               開始日期
-              <input type="date" value={startDateFilter} onChange={(event) => setStartDateFilter(event.target.value)} />
+              <input
+                type="date"
+                value={startDateFilter}
+                onChange={(event) => {
+                  setStartDateFilter(event.target.value)
+                  setIsStatusFilterExplicit(false)
+                }}
+              />
             </label>
             <label>
               結束日期
-              <input type="date" value={endDateFilter} onChange={(event) => setEndDateFilter(event.target.value)} />
+              <input
+                type="date"
+                value={endDateFilter}
+                onChange={(event) => {
+                  setEndDateFilter(event.target.value)
+                  setIsStatusFilterExplicit(false)
+                }}
+              />
             </label>
             <label>
               故障分類
-              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <select
+                value={categoryFilter}
+                onChange={(event) => {
+                  setCategoryFilter(event.target.value)
+                  setIsStatusFilterExplicit(false)
+                }}
+              >
                 <option value="">全部</option>
                 {DEFAULT_FAULT_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
@@ -680,6 +728,21 @@ function App() {
                 匯出全部 Excel
               </button>
             </div>
+          </section>
+          <section className="mobile-history-section">
+            <h2>歷史維修</h2>
+            {form.serialNumber && serialHistory.length > 0 ? (
+              <ul className="history-list">
+                {serialHistory.map((record) => (
+                  <li key={record.id}>
+                    <strong>{record.repairDate || record.receivedDate}</strong>
+                    <span>{record.faultParts.length > 0 ? record.faultParts.join('、') : '未填寫故障零件'}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="empty-state">輸入製造號碼後，會顯示相同設備的維修摘要。</p>
+            )}
           </section>
         </aside>
 
@@ -1045,7 +1108,7 @@ function App() {
             </ul>
           </section>
 
-          <section>
+          <section className="desktop-history-section">
             <h2>歷史維修</h2>
             {form.serialNumber && serialHistory.length > 0 ? (
               <ul className="history-list">
