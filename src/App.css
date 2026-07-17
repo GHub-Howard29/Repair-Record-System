@@ -329,6 +329,13 @@
   color: #9a3412;
 }
 
+.completion-warning {
+  margin: 0;
+  color: #c53030;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .mini-notice {
   margin: 12px 0;
   padding: 10px;

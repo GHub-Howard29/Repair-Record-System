@@ -263,7 +263,7 @@ function App() {
     setMobileView('editor')
     setSelectedId(null)
     setForm(toRepairFormValues())
-    setMessage('新增維修紀錄：請完成收到日期、回送地點、製造號碼。')
+    setMessage('請先完成收到日期、回送地點、製造號碼等欄位後，即時儲存，如未儲存時執行其他動作，將移失尚未儲存資料。')
     setDraftAttachments([])
     setAttachmentMessage('可先加入照片，儲存維修單後會自動上傳。')
     setPreviewAttachment(null)
@@ -610,7 +610,7 @@ function App() {
           維修紀錄
         </button>
         <button type="button" onClick={() => { setMobileView('details'); setIsMobileMenuOpen(false) }}>
-          其他資訊
+          其他功能
         </button>
       </nav>
 
@@ -762,7 +762,7 @@ function App() {
             </div>
           </div>
 
-          <p className={message.includes('不可') || message.includes('請完成') ? 'notice warning' : 'notice'}>
+          <p className={message.includes('不可') || message.includes('請完成') || message.includes('尚未儲存') ? 'notice warning' : 'notice'}>
             {message}
           </p>
 
@@ -880,6 +880,11 @@ function App() {
                       type="number"
                       min="0"
                       value={form.partChargeAmounts[part] ?? 0}
+                      onFocus={(event) => {
+                        if (event.currentTarget.value === '0') {
+                          event.currentTarget.select()
+                        }
+                      }}
                       onChange={(event) => updatePartCharge(part, Number(event.target.value))}
                     />
                   </label>
@@ -893,6 +898,11 @@ function App() {
                 min="0"
                 value={form.inspectionFee}
                 disabled={completed}
+                onFocus={(event) => {
+                  if (event.currentTarget.value === '0') {
+                    event.currentTarget.select()
+                  }
+                }}
                 onChange={(event) => updateForm('inspectionFee', Number(event.target.value))}
               />
             </label>
@@ -903,6 +913,11 @@ function App() {
                 min="0"
                 value={form.shippingFee}
                 disabled={completed}
+                onFocus={(event) => {
+                  if (event.currentTarget.value === '0') {
+                    event.currentTarget.select()
+                  }
+                }}
                 onChange={(event) => updateForm('shippingFee', Number(event.target.value))}
               />
             </label>
@@ -915,6 +930,9 @@ function App() {
                 onChange={(event) => updateForm('returnedDate', event.target.value)}
               />
             </label>
+            <p className="completion-warning wide-field">
+              注意：如輸入送回日期並儲存後，此維修單將鎖定，不提供再次編輯以及刪除之功能。
+            </p>
             <label className="wide-field">
               維修內容
               <textarea
