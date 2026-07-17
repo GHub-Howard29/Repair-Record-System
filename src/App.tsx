@@ -110,12 +110,24 @@ function App() {
   )
   const hasRecordSearch = Boolean(searchText.trim() || startDateFilter || endDateFilter || categoryFilter)
   const serialHistory = useMemo(
-    () =>
-      records.filter(
-        (record) =>
-          record.id !== selectedRecord?.id &&
-          record.serialNumber.trim().toLowerCase() === form.serialNumber.trim().toLowerCase(),
-      ),
+    () => {
+      const now = Date.now()
+
+      return records
+        .filter(
+          (record) =>
+            record.id !== selectedRecord?.id &&
+            record.serialNumber.trim().toLowerCase() === form.serialNumber.trim().toLowerCase(),
+        )
+        .sort((left, right) => {
+          const leftTime = left.returnedDate ? new Date(`${left.returnedDate}T00:00:00`).getTime() : Number.NaN
+          const rightTime = right.returnedDate ? new Date(`${right.returnedDate}T00:00:00`).getTime() : Number.NaN
+          const leftDistance = Number.isNaN(leftTime) ? Number.POSITIVE_INFINITY : Math.abs(leftTime - now)
+          const rightDistance = Number.isNaN(rightTime) ? Number.POSITIVE_INFINITY : Math.abs(rightTime - now)
+
+          return leftDistance - rightDistance || rightTime - leftTime
+        })
+    },
     [form.serialNumber, records, selectedRecord?.id],
   )
 
