@@ -160,7 +160,14 @@ function buildRepairPrintHtml(record: RepairRecord): string {
     .map((charge) => `<tr><td>${escapeHtml(charge.label)}</td><td>${charge.amount.toLocaleString()} 元</td></tr>`)
     .join('')
   const attachments = record.attachments
-    .map((attachment) => `<li>${escapeHtml(attachment.label)} - ${escapeHtml(attachment.fileName)}</li>`)
+    .map((attachment) => {
+      const previewUrl = getAttachmentPreviewUrl(attachment)
+      const description = escapeHtml(attachment.label || '未填寫照片說明')
+
+      return previewUrl
+        ? `<figure><img src="${escapeHtml(previewUrl)}" alt="${description}" /><figcaption>${description}</figcaption></figure>`
+        : `<div class="attachment-fallback">${description} - ${escapeHtml(attachment.fileName)}</div>`
+    })
     .join('')
 
   return `<!doctype html>
@@ -175,6 +182,11 @@ function buildRepairPrintHtml(record: RepairRecord): string {
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #d8dee9; padding: 8px 10px; text-align: left; vertical-align: top; }
     th { width: 140px; background: #f5f7fb; }
+    .attachments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0; list-style: none; }
+    figure { margin: 0; break-inside: avoid; }
+    figure img { display: block; width: 100%; max-height: 260px; border: 1px solid #d8dee9; border-radius: 4px; object-fit: contain; }
+    figcaption { margin-top: 6px; font-weight: 700; }
+    @media print { body { margin: 16mm; } .attachments { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   </style>
 </head>
 <body>
@@ -200,10 +212,20 @@ function buildRepairPrintHtml(record: RepairRecord): string {
   </section>
   <section>
     <h2>附件清單</h2>
-    <ul>${attachments || '<li>無附件</li>'}</ul>
+    <div class="attachments">${attachments || '<p>無附件</p>'}</div>
   </section>
 </body>
 </html>`
+}
+
+function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachments'][number]): string | undefined {
+  if (recordAttachment.previewUrl) {
+    return recordAttachment.previewUrl
+  }
+
+  return recordAttachment.driveFileId
+    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(recordAttachment.driveFileId)}&sz=w1000`
+    : undefined
 }
 
 function escapeHtml(value: string): string {

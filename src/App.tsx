@@ -559,13 +559,13 @@ function App() {
   }
 
   async function exportAllRecordsExcel() {
-    if (records.length === 0) {
-      setExportMessage('目前沒有可匯出的維修紀錄。')
+    if (filteredRecords.length === 0) {
+      setExportMessage('目前搜尋條件沒有可匯出的維修紀錄。')
       return
     }
 
     try {
-      const result = await browserExportService.exportRecordsExcel(records)
+      const result = await browserExportService.exportRecordsExcel(filteredRecords)
       setExportMessage(
         result === 'saved'
           ? '已選擇儲存位置並匯出 .xlsx。'
@@ -759,7 +759,7 @@ function App() {
                     <strong>{record.serialNumber}</strong>
                     <span>{record.customerName || record.returnLocation}</span>
                     <small>
-                      {record.receivedDate} · {getRepairStatusLabel(record)}
+                      {record.receivedDate} · {getRepairStatusLabel(record)}{record.attachments.length > 0 ? '（有附件）' : ''}
                     </small>
                   </button>
                 </li>
@@ -774,7 +774,7 @@ function App() {
                 {exportSelectionMode === 'pdf' ? '取消選擇匯出單' : '匯出單筆 PDF'}
               </button>
               <button type="button" className="secondary-action" onClick={() => void exportAllRecordsExcel()}>
-                匯出全部 Excel
+                依搜尋條件結果匯出 Excel
               </button>
             </div>
           </section>
