@@ -550,7 +550,7 @@ function App() {
 
     try {
       await browserExportService.exportRecordsExcel(records)
-      setExportMessage('已匯出 CSV，可使用 Excel 開啟。')
+      setExportMessage('已匯出 .xlsx，可使用 Excel 開啟。')
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : 'Excel 匯出失敗。')
     }

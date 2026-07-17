@@ -28,20 +28,23 @@ export const browserExportService: ExportService = {
     printWindow.print()
   },
   async exportRecordsExcel(records) {
-    const csv = buildRepairCsv(records)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
+    const XLSX = await import('xlsx')
+    const workbook = XLSX.utils.book_new()
+    const recordsSheet = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...buildRepairExportRows(records)])
+    const chargesSheet = XLSX.utils.aoa_to_sheet([CHARGE_HEADERS, ...buildChargeExportRows(records)])
 
-    link.href = url
-    link.download = `repair-records-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+    recordsSheet['!cols'] = [
+      { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 14 }, { wch: 22 }, { wch: 32 }, { wch: 28 }, { wch: 12 }, { wch: 14 },
+    ]
+    chargesSheet['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(workbook, recordsSheet, '維修紀錄')
+    XLSX.utils.book_append_sheet(workbook, chargesSheet, '收費明細')
+    XLSX.writeFile(workbook, `repair-records-${new Date().toISOString().slice(0, 10)}.xlsx`, { compression: true })
   },
 }
 
-function buildRepairCsv(records: RepairRecord[]): string {
-  const header = [
+const EXPORT_HEADERS = [
     '收到日期',
     '回送地點',
     '客戶姓名',
@@ -55,8 +58,12 @@ function buildRepairCsv(records: RepairRecord[]): string {
     '備註',
     '送回日期',
     '總金額',
-  ]
-  const rows = records.map((record) => [
+]
+
+const CHARGE_HEADERS = ['製造號碼', '收到日期', '收費項目', '金額']
+
+export function buildRepairExportRows(records: RepairRecord[]): Array<Array<string | number>> {
+  return records.map((record) => [
     record.receivedDate,
     record.returnLocation,
     record.customerName,
@@ -69,10 +76,14 @@ function buildRepairCsv(records: RepairRecord[]): string {
     record.repairContent,
     record.note,
     record.returnedDate,
-    record.charges.reduce((total, charge) => total + charge.amount, 0).toString(),
+    record.charges.reduce((total, charge) => total + charge.amount, 0),
   ])
+}
 
-  return [header, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')
+function buildChargeExportRows(records: RepairRecord[]): Array<Array<string | number>> {
+  return records.flatMap((record) =>
+    record.charges.map((charge) => [record.serialNumber, record.receivedDate, charge.label, charge.amount]),
+  )
 }
 
 function buildRepairPrintHtml(record: RepairRecord): string {
@@ -125,10 +136,6 @@ function buildRepairPrintHtml(record: RepairRecord): string {
   </section>
 </body>
 </html>`
-}
-
-function escapeCsvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
 }
 
 function escapeHtml(value: string): string {
