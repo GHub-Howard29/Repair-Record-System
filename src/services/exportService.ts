@@ -32,7 +32,7 @@ export const browserExportService: ExportService = {
 
     const cleanup = () => window.setTimeout(() => frame.remove(), 0)
     printWindow.addEventListener('afterprint', cleanup, { once: true })
-    printDocument.write(buildRepairPrintHtml(record))
+    printDocument.write(await buildRepairPrintHtml(record))
     printDocument.close()
     window.setTimeout(() => {
       printWindow.focus()
@@ -154,21 +154,23 @@ function buildChargeExportRows(records: RepairRecord[]): Array<Array<string | nu
   )
 }
 
-function buildRepairPrintHtml(record: RepairRecord): string {
+async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
   const total = record.charges.reduce((sum, charge) => sum + charge.amount, 0)
   const charges = record.charges
     .map((charge) => `<tr><td>${escapeHtml(charge.label)}</td><td>${charge.amount.toLocaleString()} 元</td></tr>`)
     .join('')
-  const attachments = record.attachments
-    .map((attachment) => {
-      const previewUrl = getAttachmentPreviewUrl(attachment)
+  const attachments = (
+    await Promise.all(
+      record.attachments.map(async (attachment) => {
+      const previewUrl = await getAttachmentPreviewUrl(attachment)
       const description = escapeHtml(attachment.label || '未填寫照片說明')
 
       return previewUrl
         ? `<figure><img src="${escapeHtml(previewUrl)}" alt="${description}" /><figcaption>${description}</figcaption></figure>`
         : `<div class="attachment-fallback">${description} - ${escapeHtml(attachment.fileName)}</div>`
-    })
-    .join('')
+      }),
+    )
+  ).join('')
 
   return `<!doctype html>
 <html lang="zh-Hant">
@@ -218,14 +220,22 @@ function buildRepairPrintHtml(record: RepairRecord): string {
 </html>`
 }
 
-function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachments'][number]): string | undefined {
+async function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachments'][number]): Promise<string | undefined> {
   if (recordAttachment.previewUrl) {
     return recordAttachment.previewUrl
   }
 
-  return recordAttachment.driveFileId
-    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(recordAttachment.driveFileId)}&sz=w1000`
-    : undefined
+  if (!recordAttachment.driveFileId) {
+    return undefined
+  }
+
+  try {
+    const { getGoogleDriveAttachmentPreviewDataUrl } = await import('./googleDriveAttachmentService')
+
+    return await getGoogleDriveAttachmentPreviewDataUrl(recordAttachment)
+  } catch {
+    return undefined
+  }
 }
 
 function escapeHtml(value: string): string {

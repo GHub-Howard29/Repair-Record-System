@@ -80,6 +80,52 @@ export const uploadRepairAttachment = onCall(
   },
 )
 
+export const getRepairAttachmentPreview = onCall(
+  {
+    region: 'asia-east1',
+    timeoutSeconds: 60,
+    memory: '512MiB',
+    secrets: [driveFolderId, driveOauthClientId, driveOauthClientSecret, driveOauthRefreshToken, allowedEmails],
+  },
+  async (request) => {
+    const email = request.auth?.token.email
+
+    if (!email) {
+      throw new HttpsError('unauthenticated', '請先登入後再讀取附件。')
+    }
+
+    const permittedEmails = parseAllowedEmails(allowedEmails.value())
+
+    if (!permittedEmails.includes(email.toLowerCase())) {
+      throw new HttpsError('permission-denied', '目前帳號沒有讀取附件的權限。')
+    }
+
+    const driveFileId = request.data?.driveFileId
+
+    if (typeof driveFileId !== 'string' || !driveFileId.trim()) {
+      throw new HttpsError('invalid-argument', '缺少附件檔案識別碼。')
+    }
+
+    const { google } = await import('googleapis')
+    const auth = new google.auth.OAuth2(driveOauthClientId.value(), driveOauthClientSecret.value())
+    auth.setCredentials({ refresh_token: driveOauthRefreshToken.value() })
+    const drive = google.drive({ version: 'v3', auth })
+    const file = await drive.files.get({ fileId: driveFileId, fields: 'parents,mimeType' })
+
+    if (!file.data.parents?.includes(driveFolderId.value()) || !imageMimeTypes.has(file.data.mimeType ?? '')) {
+      throw new HttpsError('permission-denied', '無法讀取指定附件。')
+    }
+
+    const image = await drive.files.get(
+      { fileId: driveFileId, alt: 'media' },
+      { responseType: 'arraybuffer' },
+    )
+    const base64 = Buffer.from(image.data).toString('base64')
+
+    return { dataUrl: `data:${file.data.mimeType};base64,${base64}` }
+  },
+)
+
 function validateUpload(recordId, attachment) {
   if (typeof recordId !== 'string' || !recordId.trim()) {
     throw new HttpsError('invalid-argument', '缺少維修紀錄 ID。')
