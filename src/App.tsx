@@ -21,6 +21,7 @@ import {
 } from './features/sync/syncQueue'
 import {
   buildRepairRecord,
+  getSerialNumberError,
   getRepairStatusLabel,
   hasOpenRepairWithSerial,
   isRepairCompleted,
@@ -55,6 +56,14 @@ function getSyncStatusLabel(status: 'local' | 'pending' | 'synced' | 'failed'): 
   }[status]
 }
 
+function getAttachmentPreviewUrl(attachment: RepairAttachment): string | undefined {
+  if (attachment.previewUrl) {
+    return attachment.previewUrl
+  }
+
+  return attachment.driveFileId ? `https://drive.google.com/thumbnail?id=${attachment.driveFileId}&sz=w1000` : undefined
+}
+
 function App() {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser())
   const [records, setRecords] = useState<RepairRecord[]>([])
@@ -66,9 +75,10 @@ function App() {
   const [attachmentDescription, setAttachmentDescription] = useState<(typeof ATTACHMENT_DESCRIPTIONS)[number]>('維修前')
   const [customAttachmentDescription, setCustomAttachmentDescription] = useState('')
   const [searchText, setSearchText] = useState('')
-  const [dateFilter, setDateFilter] = useState('')
+  const [startDateFilter, setStartDateFilter] = useState('')
+  const [endDateFilter, setEndDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [recordStatusFilter, setRecordStatusFilter] = useState<'active' | 'completed' | ''>('')
+  const [recordStatusFilter, setRecordStatusFilter] = useState<'active' | 'completed' | ''>('active')
   const [mobileView, setMobileView] = useState<'records' | 'editor' | 'details'>('records')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
@@ -84,12 +94,14 @@ function App() {
   )
   const googleButtonRef = useRef<HTMLDivElement | null>(null)
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
+  const serialNumberError = getSerialNumberError(form.serialNumber)
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
   const attachmentList = selectedRecord?.attachments ?? draftAttachments
   const availableFaultParts = useMemo(
     () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])),
     [formFaultParts],
   )
+  const hasRecordSearch = Boolean(searchText.trim() || startDateFilter || endDateFilter || categoryFilter)
   const serialHistory = useMemo(
     () =>
       records.filter(
@@ -111,17 +123,6 @@ function App() {
   )
   const syncSummary = useMemo(() => summarizeSyncQueue(syncTasks), [syncTasks])
   const syncPlan = useMemo(() => buildSyncPlan(syncTasks), [syncTasks])
-  const faultCategories = useMemo(
-    () =>
-      Array.from(new Set(records.map((record) => record.faultCategory).filter(Boolean))).sort((a, b) =>
-        a.localeCompare(b),
-      ),
-    [records],
-  )
-  const availableFaultCategories = useMemo(
-    () => Array.from(new Set([...DEFAULT_FAULT_CATEGORIES, ...faultCategories])).sort((a, b) => a.localeCompare(b)),
-    [faultCategories],
-  )
   const filteredRecords = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase()
 
@@ -131,15 +132,17 @@ function App() {
         record.customerName.toLowerCase().includes(normalizedSearch) ||
         record.serialNumber.toLowerCase().includes(normalizedSearch) ||
         record.returnLocation.toLowerCase().includes(normalizedSearch)
-      const matchesDate = !dateFilter || record.receivedDate.startsWith(dateFilter)
+      const matchesStartDate = !startDateFilter || record.receivedDate >= startDateFilter
+      const matchesEndDate = !endDateFilter || record.receivedDate <= endDateFilter
       const matchesCategory = !categoryFilter || record.faultCategory === categoryFilter
       const matchesStatus =
+        hasRecordSearch ||
         !recordStatusFilter ||
         (recordStatusFilter === 'active' ? !isRepairCompleted(record) : isRepairCompleted(record))
 
-      return matchesText && matchesDate && matchesCategory && matchesStatus
+      return matchesText && matchesStartDate && matchesEndDate && matchesCategory && matchesStatus
     })
-  }, [categoryFilter, dateFilter, recordStatusFilter, records, searchText])
+  }, [categoryFilter, endDateFilter, hasRecordSearch, recordStatusFilter, records, searchText, startDateFilter])
 
   useEffect(() => {
     let ignore = false
@@ -172,15 +175,17 @@ function App() {
             return
           }
 
-          if (cloudRecord && hasPendingAttachmentSync) {
+          if (cloudRecord) {
             const localAttachments = new Map(localRecord.attachments.map((attachment) => [attachment.id, attachment]))
 
             recordsById.set(localRecord.id, {
               ...cloudRecord,
               attachments: cloudRecord.attachments.map((attachment) => ({
                 ...attachment,
-                previewUrl: localAttachments.get(attachment.id)?.previewUrl,
-                syncStatus: localAttachments.get(attachment.id)?.syncStatus ?? attachment.syncStatus,
+                previewUrl: localAttachments.get(attachment.id)?.previewUrl ?? attachment.previewUrl,
+                syncStatus: hasPendingAttachmentSync
+                  ? localAttachments.get(attachment.id)?.syncStatus ?? attachment.syncStatus
+                  : attachment.syncStatus,
               })),
             })
           }
@@ -591,8 +596,8 @@ function App() {
             <div className="stats-row">
               <button
                 type="button"
-                className={recordStatusFilter === 'active' ? 'stat-filter active' : 'stat-filter'}
-                aria-pressed={recordStatusFilter === 'active'}
+                className={!hasRecordSearch && recordStatusFilter === 'active' ? 'stat-filter active' : 'stat-filter'}
+                aria-pressed={!hasRecordSearch && recordStatusFilter === 'active'}
                 onClick={() => setRecordStatusFilter(recordStatusFilter === 'active' ? '' : 'active')}
               >
                 <span>{stats.active}</span>
@@ -600,8 +605,8 @@ function App() {
               </button>
               <button
                 type="button"
-                className={recordStatusFilter === 'completed' ? 'stat-filter active' : 'stat-filter'}
-                aria-pressed={recordStatusFilter === 'completed'}
+                className={!hasRecordSearch && recordStatusFilter === 'completed' ? 'stat-filter active' : 'stat-filter'}
+                aria-pressed={!hasRecordSearch && recordStatusFilter === 'completed'}
                 onClick={() => setRecordStatusFilter(recordStatusFilter === 'completed' ? '' : 'completed')}
               >
                 <span>{stats.completed}</span>
@@ -622,14 +627,18 @@ function App() {
               />
             </label>
             <label>
-              年月
-              <input type="month" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+              開始日期
+              <input type="date" value={startDateFilter} onChange={(event) => setStartDateFilter(event.target.value)} />
+            </label>
+            <label>
+              結束日期
+              <input type="date" value={endDateFilter} onChange={(event) => setEndDateFilter(event.target.value)} />
             </label>
             <label>
               故障分類
               <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
                 <option value="">全部</option>
-                {faultCategories.map((category) => (
+                {DEFAULT_FAULT_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
@@ -717,7 +726,16 @@ function App() {
               <input
                 value={form.serialNumber}
                 disabled={completed}
-                onChange={(event) => updateForm('serialNumber', event.target.value)}
+                maxLength={16}
+                inputMode="text"
+                autoCapitalize="characters"
+                aria-invalid={Boolean(serialNumberError)}
+                onChange={(event) => updateForm('serialNumber', event.target.value.toUpperCase())}
+                onBlur={() => {
+                  if (serialNumberError) {
+                    setMessage(serialNumberError)
+                  }
+                }}
               />
             </label>
             <label>
@@ -767,7 +785,7 @@ function App() {
                 onChange={(event) => updateForm('faultCategory', event.target.value)}
               >
                 <option value="">未選擇</option>
-                {availableFaultCategories.map((category) => (
+                {DEFAULT_FAULT_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
@@ -914,7 +932,9 @@ function App() {
                 {attachmentList.map((attachment, index) => (
                   <li key={attachment.id}>
                     <button type="button" className="attachment-preview" onClick={() => setPreviewAttachment(attachment)}>
-                      {attachment.previewUrl ? <img src={attachment.previewUrl} alt={attachment.label} /> : null}
+                      {getAttachmentPreviewUrl(attachment) ? (
+                        <img src={getAttachmentPreviewUrl(attachment)} alt={attachment.label} />
+                      ) : null}
                       <span>{attachment.label || getAttachmentLabel(index)}</span>
                     </button>
                     <small>
@@ -1022,7 +1042,7 @@ function App() {
 
         </aside>
       </div>
-      {previewAttachment?.previewUrl ? (
+      {previewAttachment && getAttachmentPreviewUrl(previewAttachment) ? (
         <div className="preview-dialog" role="dialog" aria-modal="true" aria-label="附件預覽">
           <button type="button" className="preview-backdrop" onClick={() => setPreviewAttachment(null)} aria-label="關閉預覽" />
           <div className="preview-content">
@@ -1032,7 +1052,7 @@ function App() {
                 關閉
               </button>
             </div>
-            <img src={previewAttachment.previewUrl} alt={previewAttachment.label} />
+            <img src={getAttachmentPreviewUrl(previewAttachment)} alt={previewAttachment.label} />
           </div>
         </div>
       ) : null}

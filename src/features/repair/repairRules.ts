@@ -25,8 +25,10 @@ export function validateRepairForm(values: RepairFormValues): string[] {
     errors.push('請填寫回送地點。')
   }
 
-  if (!values.serialNumber.trim()) {
-    errors.push('請填寫製造號碼。')
+  const serialNumberError = getSerialNumberError(values.serialNumber)
+
+  if (serialNumberError) {
+    errors.push(serialNumberError)
   }
 
   return errors
@@ -80,6 +82,18 @@ export function toRepairFormValues(record?: RepairRecord): RepairFormValues {
   }
 }
 
+export function getSerialNumberError(serialNumber: string): string | null {
+  if (!serialNumber.trim()) {
+    return '請填寫製造號碼。'
+  }
+
+  if (!/^NIS-[A-Z0-9]{12}$/.test(serialNumber)) {
+    return '製造號碼須為共 16 碼的「NIS-」加 12 碼英數字，NIS- 後不得有空格或特殊字元。'
+  }
+
+  return null
+}
+
 function getLocalToday(): string {
   const now = new Date()
   const timezoneOffset = now.getTimezoneOffset() * 60_000
@@ -110,7 +124,7 @@ export function buildRepairRecord(
     receivedDate: values.receivedDate,
     returnLocation: values.returnLocation.trim(),
     customerName: values.customerName.trim(),
-    serialNumber: values.serialNumber.trim(),
+    serialNumber: values.serialNumber.trim().toUpperCase(),
     shippedDate: values.shippedDate,
     purchaseType: values.purchaseType,
     repairDate: values.repairDate,
