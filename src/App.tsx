@@ -73,7 +73,7 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
   const [message, setMessage] = useState(
-    isGoogleAuthConfigured() ? '請先以 Google 登入開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
+    isGoogleAuthConfigured() ? '請先使用新增按鈕後開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
   )
   const [attachmentMessage, setAttachmentMessage] = useState('可先加入照片，儲存維修單後會自動上傳。')
   const [syncMessage, setSyncMessage] = useState('同步清單會保留維修單與照片，連線恢復後會再次送出。')
@@ -87,7 +87,7 @@ function App() {
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
   const attachmentList = selectedRecord?.attachments ?? draftAttachments
   const availableFaultParts = useMemo(
-    () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])).sort((a, b) => a.localeCompare(b)),
+    () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])),
     [formFaultParts],
   )
   const serialHistory = useMemo(
@@ -589,14 +589,24 @@ function App() {
           <section className="record-statistics" aria-label="維修紀錄統計">
             <h2>維修紀錄統計</h2>
             <div className="stats-row">
-              <div>
+              <button
+                type="button"
+                className={recordStatusFilter === 'active' ? 'stat-filter active' : 'stat-filter'}
+                aria-pressed={recordStatusFilter === 'active'}
+                onClick={() => setRecordStatusFilter(recordStatusFilter === 'active' ? '' : 'active')}
+              >
                 <span>{stats.active}</span>
                 <p>維修中</p>
-              </div>
-              <div>
+              </button>
+              <button
+                type="button"
+                className={recordStatusFilter === 'completed' ? 'stat-filter active' : 'stat-filter'}
+                aria-pressed={recordStatusFilter === 'completed'}
+                onClick={() => setRecordStatusFilter(recordStatusFilter === 'completed' ? '' : 'completed')}
+              >
                 <span>{stats.completed}</span>
                 <p>已完成</p>
-              </div>
+              </button>
             </div>
           </section>
           <div className="list-title">
@@ -624,14 +634,6 @@ function App() {
                     {category}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
-              維修狀態
-              <select value={recordStatusFilter} onChange={(event) => setRecordStatusFilter(event.target.value as 'active' | 'completed' | '')}>
-                <option value="">全部</option>
-                <option value="active">維修中</option>
-                <option value="completed">已完成</option>
               </select>
             </label>
           </div>
@@ -880,18 +882,33 @@ function App() {
                 />
               ) : null}
             </fieldset>
-            <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
-              新增照片
-              <input
-                type="file"
-                accept="image/*"
-                disabled={completed || attachmentList.length >= 5}
-                onChange={(event) => {
-                  void addAttachment(event.target.files)
-                  event.currentTarget.value = ''
-                }}
-              />
-            </label>
+            <div className="attachment-file-actions">
+              <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+                拍照新增
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  disabled={completed || attachmentList.length >= 5}
+                  onChange={(event) => {
+                    void addAttachment(event.target.files)
+                    event.currentTarget.value = ''
+                  }}
+                />
+              </label>
+              <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+                從裝置選擇
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={completed || attachmentList.length >= 5}
+                  onChange={(event) => {
+                    void addAttachment(event.target.files)
+                    event.currentTarget.value = ''
+                  }}
+                />
+              </label>
+            </div>
             {attachmentList.length > 0 ? (
               <ul className="attachment-list">
                 {attachmentList.map((attachment, index) => (
@@ -905,7 +922,20 @@ function App() {
                     </small>
                     <div className="attachment-actions">
                       <label className={completed ? 'text-action disabled' : 'text-action'}>
-                        更換
+                        拍照更換
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          disabled={completed}
+                          onChange={(event) => {
+                            void replaceAttachment(attachment.id, event.target.files)
+                            event.currentTarget.value = ''
+                          }}
+                        />
+                      </label>
+                      <label className={completed ? 'text-action disabled' : 'text-action'}>
+                        選擇更換
                         <input
                           type="file"
                           accept="image/*"

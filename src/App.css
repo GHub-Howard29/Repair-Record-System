@@ -133,7 +133,7 @@
   margin: 12px 0 0;
 }
 
-.record-statistics .stats-row div {
+.record-statistics .stat-filter {
   padding: 12px;
 }
 
@@ -169,6 +169,27 @@
 
 .stats-row div {
   padding: 16px;
+}
+
+.stat-filter {
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stat-filter:hover,
+.stat-filter.active {
+  border-color: #2f855a;
+  background: #f0fff4;
+}
+
+.stat-filter:focus-visible {
+  outline: 2px solid #2f855a;
+  outline-offset: 2px;
 }
 
 .stats-row span {
@@ -416,6 +437,13 @@
 
 .attachment-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment-file-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -465,7 +493,6 @@
 
 .file-action {
   width: 100%;
-  margin-top: 8px;
   padding: 10px 12px;
   border: 1px dashed #2f855a;
   color: #276749;
