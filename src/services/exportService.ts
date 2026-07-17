@@ -188,7 +188,11 @@ async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
     figure { margin: 0; break-inside: avoid; }
     figure img { display: block; width: 100%; max-height: 260px; border: 1px solid #d8dee9; border-radius: 4px; object-fit: contain; }
     figcaption { margin-top: 6px; font-weight: 700; }
-    @media print { body { margin: 16mm; } .attachments { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media print {
+      body { margin: 16mm; }
+      .attachments { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .attachments-section { break-before: page; page-break-before: always; }
+    }
   </style>
 </head>
 <body>
@@ -212,7 +216,7 @@ async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
     <h2>收費內容</h2>
     <table>${charges}<tr><th>總金額</th><td>${total.toLocaleString()} 元</td></tr></table>
   </section>
-  <section>
+  <section class="attachments-section">
     <h2>附件清單</h2>
     <div class="attachments">${attachments || '<p>無附件</p>'}</div>
   </section>
