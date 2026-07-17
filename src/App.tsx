@@ -95,6 +95,7 @@ function App() {
   const [attachmentMessage, setAttachmentMessage] = useState('可先加入照片，儲存維修單後會自動上傳。')
   const [syncMessage, setSyncMessage] = useState('同步清單會保留維修單與照片，連線恢復後會再次送出。')
   const [exportMessage, setExportMessage] = useState('可匯出單筆維修紀錄或全部資料。')
+  const [exportSelectionMode, setExportSelectionMode] = useState<'pdf' | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<RepairAttachment | null>(null)
   const [authMessage, setAuthMessage] = useState(
     isGoogleAuthConfigured() ? '正式 Google OAuth 已設定。' : '請在 .env 設定 VITE_GOOGLE_CLIENT_ID 啟用正式登入。',
@@ -284,6 +285,7 @@ function App() {
     setMessage('請先完成收到日期、回送地點、製造號碼等欄位後，即時儲存，如未儲存時執行其他動作，將移失尚未儲存資料。')
     setDraftAttachments([])
     setAttachmentMessage('可先加入照片，儲存維修單後會自動上傳。')
+    setExportSelectionMode(null)
     setPreviewAttachment(null)
   }
 
@@ -297,6 +299,7 @@ function App() {
       isRepairCompleted(record) ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。',
     )
     setPreviewAttachment(null)
+    setExportSelectionMode(null)
   }
 
   function updateForm<K extends keyof RepairFormValues>(key: K, value: RepairFormValues[K]) {
@@ -528,18 +531,31 @@ function App() {
     )
   }
 
-  async function exportSelectedRecordPdf() {
-    if (!selectedRecord) {
-      setExportMessage('請先選擇一筆維修紀錄。')
-      return
-    }
-
+  async function exportRecordPdf(record: RepairRecord) {
     try {
-      await browserExportService.exportRecordPdf(selectedRecord)
-      setExportMessage('已建立列印頁面，可使用瀏覽器另存 PDF。')
+      await browserExportService.exportRecordPdf(record)
+      setExportMessage('已開啟列印視窗，可選擇另存 PDF。')
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : 'PDF 匯出失敗。')
     }
+  }
+
+  function exportSelectedRecordPdf() {
+    if (selectedRecord) {
+      void exportRecordPdf(selectedRecord)
+      return
+    }
+
+    if (window.matchMedia('(max-width: 720px)').matches) {
+      setExportSelectionMode((mode) => {
+        const nextMode = mode === 'pdf' ? null : 'pdf'
+        setExportMessage(nextMode ? '請點選上方要匯出 PDF 的維修單。' : '已取消選擇匯出維修單。')
+        return nextMode
+      })
+      return
+    }
+
+    setExportMessage('請先選擇一筆維修紀錄。')
   }
 
   async function exportAllRecordsExcel() {
@@ -549,8 +565,14 @@ function App() {
     }
 
     try {
-      await browserExportService.exportRecordsExcel(records)
-      setExportMessage('已匯出 .xlsx，可使用 Excel 開啟。')
+      const result = await browserExportService.exportRecordsExcel(records)
+      setExportMessage(
+        result === 'saved'
+          ? '已選擇儲存位置並匯出 .xlsx。'
+          : result === 'cancelled'
+            ? '已取消匯出 .xlsx。'
+            : '此瀏覽器不支援選擇儲存位置，已下載 .xlsx。',
+      )
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : 'Excel 匯出失敗。')
     }
@@ -723,7 +745,16 @@ function App() {
                   <button
                     type="button"
                     className={record.id === selectedId ? 'record-item active' : 'record-item'}
-                    onClick={() => editRecord(record)}
+                    onClick={() => {
+                      if (exportSelectionMode === 'pdf') {
+                        setSelectedId(record.id)
+                        setExportSelectionMode(null)
+                        void exportRecordPdf(record)
+                        return
+                      }
+
+                      editRecord(record)
+                    }}
                   >
                     <strong>{record.serialNumber}</strong>
                     <span>{record.customerName || record.returnLocation}</span>
@@ -739,8 +770,8 @@ function App() {
             <h2>匯出</h2>
             <p className="mini-notice">{exportMessage}</p>
             <div className="export-actions">
-              <button type="button" className="secondary-action" onClick={() => void exportSelectedRecordPdf()}>
-                匯出單筆 PDF
+              <button type="button" className="secondary-action" onClick={exportSelectedRecordPdf}>
+                {exportSelectionMode === 'pdf' ? '取消選擇匯出單' : '匯出單筆 PDF'}
               </button>
               <button type="button" className="secondary-action" onClick={() => void exportAllRecordsExcel()}>
                 匯出全部 Excel

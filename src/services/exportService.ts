@@ -2,7 +2,7 @@ import type { RepairRecord } from '../types/repair'
 
 export interface ExportService {
   exportRecordPdf(record: RepairRecord): Promise<void>
-  exportRecordsExcel(records: RepairRecord[]): Promise<void>
+  exportRecordsExcel(records: RepairRecord[]): Promise<'saved' | 'downloaded' | 'cancelled'>
 }
 
 export const pendingExportService: ExportService = {
@@ -16,16 +16,28 @@ export const pendingExportService: ExportService = {
 
 export const browserExportService: ExportService = {
   async exportRecordPdf(record) {
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+    const frame = document.createElement('iframe')
 
-    if (!printWindow) {
-      throw new Error('瀏覽器阻擋了列印視窗。')
+    frame.setAttribute('aria-hidden', 'true')
+    frame.style.cssText = 'position:fixed; width:0; height:0; border:0; visibility:hidden;'
+    document.body.append(frame)
+
+    const printDocument = frame.contentDocument
+    const printWindow = frame.contentWindow
+
+    if (!printDocument || !printWindow) {
+      frame.remove()
+      throw new Error('無法建立列印文件。')
     }
 
-    printWindow.document.write(buildRepairPrintHtml(record))
-    printWindow.document.close()
-    printWindow.focus()
-    printWindow.print()
+    const cleanup = () => window.setTimeout(() => frame.remove(), 0)
+    printWindow.addEventListener('afterprint', cleanup, { once: true })
+    printDocument.write(buildRepairPrintHtml(record))
+    printDocument.close()
+    window.setTimeout(() => {
+      printWindow.focus()
+      printWindow.print()
+    }, 0)
   },
   async exportRecordsExcel(records) {
     const XLSX = await import('xlsx')
@@ -40,8 +52,64 @@ export const browserExportService: ExportService = {
     chargesSheet['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 14 }]
     XLSX.utils.book_append_sheet(workbook, recordsSheet, '維修紀錄')
     XLSX.utils.book_append_sheet(workbook, chargesSheet, '收費明細')
-    XLSX.writeFile(workbook, `repair-records-${new Date().toISOString().slice(0, 10)}.xlsx`, { compression: true })
+    const filename = `repair-records-${new Date().toISOString().slice(0, 10)}.xlsx`
+    const saveResult = await saveWorkbookWithPicker(XLSX, workbook, filename)
+
+    if (saveResult) {
+      return saveResult
+    }
+
+    XLSX.writeFile(workbook, filename, { compression: true })
+    return 'downloaded'
   },
+}
+
+interface BrowserFileHandle {
+  createWritable(): Promise<{
+    write(data: Blob): Promise<void>
+    close(): Promise<void>
+  }>
+}
+
+type SaveFilePicker = (options: {
+  suggestedName: string
+  types: Array<{ description: string; accept: Record<string, string[]> }>
+}) => Promise<BrowserFileHandle>
+
+async function saveWorkbookWithPicker(
+  XLSX: typeof import('xlsx'),
+  workbook: import('xlsx').WorkBook,
+  filename: string,
+): Promise<'saved' | 'cancelled' | null> {
+  const saveFilePicker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker
+
+  if (!saveFilePicker) {
+    return null
+  }
+
+  try {
+    const fileHandle = await saveFilePicker({
+      suggestedName: filename,
+      types: [
+        {
+          description: 'Excel 活頁簿',
+          accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
+        },
+      ],
+    })
+    const writable = await fileHandle.createWritable()
+    const content = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true }) as ArrayBuffer
+
+    await writable.write(new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+    await writable.close()
+    return 'saved'
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return 'cancelled'
+    }
+
+    return null
+  }
 }
 
 const EXPORT_HEADERS = [
