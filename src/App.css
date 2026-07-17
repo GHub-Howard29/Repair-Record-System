@@ -1,3 +1,16 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 .login-shell,
 .app-shell {
   min-height: 100svh;
@@ -247,6 +260,12 @@
   padding: 18px;
 }
 
+.record-list,
+.editor-panel,
+.side-panel {
+  min-width: 0;
+}
+
 .list-title,
 .panel-heading,
 .total-row {
@@ -421,6 +440,16 @@
   display: grid;
   align-content: start;
   gap: 16px;
+}
+
+@media (min-width: 721px) {
+  .desktop-history-section {
+    order: 1;
+  }
+
+  .sync-section {
+    order: 2;
+  }
 }
 
 .charge-list li,

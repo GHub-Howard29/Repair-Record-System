@@ -64,6 +64,12 @@ function getAttachmentPreviewUrl(attachment: RepairAttachment): string | undefin
   return attachment.driveFileId ? `https://drive.google.com/thumbnail?id=${attachment.driveFileId}&sz=w1000` : undefined
 }
 
+function getHistoryChargeSummary(record: RepairRecord): string {
+  const chargedItems = record.charges.filter((charge) => charge.amount !== 0).map((charge) => charge.label)
+
+  return chargedItems.length > 0 ? chargedItems.join('、') : '無收費項目'
+}
+
 function App() {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser())
   const [records, setRecords] = useState<RepairRecord[]>([])
@@ -730,18 +736,19 @@ function App() {
             </div>
           </section>
           <section className="mobile-history-section">
-            <h2>歷史維修</h2>
-            {form.serialNumber && serialHistory.length > 0 ? (
+            <h2>維修歷史</h2>
+            {selectedRecord && serialHistory.length > 0 ? (
               <ul className="history-list">
                 {serialHistory.map((record) => (
                   <li key={record.id}>
-                    <strong>{record.repairDate || record.receivedDate}</strong>
-                    <span>{record.faultParts.length > 0 ? record.faultParts.join('、') : '未填寫故障零件'}</span>
+                    <strong>送回日期：{record.returnedDate || '尚未送回'}</strong>
+                    <span>收費項目：{getHistoryChargeSummary(record)}</span>
+                    <span>收費總額：{sumCharges(record.charges).toLocaleString()} 元</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="empty-state">輸入製造號碼後，會顯示相同設備的維修摘要。</p>
+              <p className="empty-state">新維修表單輸入製造號碼並儲存後，會顯示相同設備的歷史維修摘要。</p>
             )}
           </section>
         </aside>
@@ -1104,7 +1111,7 @@ function App() {
             )}
           </section>
 
-          <section>
+          <section className="sync-section">
             <h2>同步規劃</h2>
             <p className="empty-state">
               待同步 {syncSummary.pending} 筆；失敗 {syncSummary.failed} 筆。
@@ -1127,18 +1134,19 @@ function App() {
           </section>
 
           <section className="desktop-history-section">
-            <h2>歷史維修</h2>
-            {form.serialNumber && serialHistory.length > 0 ? (
+            <h2>維修歷史</h2>
+            {selectedRecord && serialHistory.length > 0 ? (
               <ul className="history-list">
                 {serialHistory.map((record) => (
                   <li key={record.id}>
-                    <strong>{record.repairDate || record.receivedDate}</strong>
-                    <span>{record.faultParts.length > 0 ? record.faultParts.join('、') : '未填寫故障零件'}</span>
+                    <strong>送回日期：{record.returnedDate || '尚未送回'}</strong>
+                    <span>收費項目：{getHistoryChargeSummary(record)}</span>
+                    <span>收費總額：{sumCharges(record.charges).toLocaleString()} 元</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="empty-state">輸入製造號碼後，會顯示相同設備的維修摘要。</p>
+              <p className="empty-state">新維修表單輸入製造號碼並儲存後，會顯示相同設備的歷史維修摘要。</p>
             )}
           </section>
 
