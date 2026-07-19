@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildRepairExportRows } from './exportService'
+import { buildRepairExportRows, buildRepairPrintHtml } from './exportService'
 import type { RepairRecord } from '../types/repair'
 
 const record: RepairRecord = {
@@ -34,5 +34,34 @@ describe('Excel 匯出資料', () => {
       '2026-07-17', '台北', '王小明', 'NIS-12AB34CD56EF', '', 'customer', '', '自然損壞', '水泵',
       '更換水泵', '', '2026-07-20', 180,
     ])
+  })
+})
+
+describe('列印維修紀錄', () => {
+  it('沒有附件時不產生附件清單頁面', async () => {
+    const html = await buildRepairPrintHtml(record)
+
+    expect(html).not.toContain('附件清單')
+    expect(html).not.toContain('<section class="attachments-section">')
+  })
+
+  it('有附件時產生附件清單頁面', async () => {
+    const html = await buildRepairPrintHtml({
+      ...record,
+      attachments: [{
+        id: 'attachment-1',
+        fileName: 'before.jpg',
+        label: '維修前',
+        mimeType: 'image/jpeg',
+        size: 100,
+        compressed: false,
+        previewUrl: 'data:image/jpeg;base64,abc',
+        syncStatus: 'synced',
+        createdAt: '2026-07-17T00:00:00.000Z',
+      }],
+    })
+
+    expect(html).toContain('附件清單')
+    expect(html).toContain('attachments-section')
   })
 })

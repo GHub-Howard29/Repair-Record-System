@@ -154,7 +154,7 @@ function buildChargeExportRows(records: RepairRecord[]): Array<Array<string | nu
   )
 }
 
-async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
+export async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
   const total = record.charges.reduce((sum, charge) => sum + charge.amount, 0)
   const charges = record.charges
     .map((charge) => `<tr><td>${escapeHtml(charge.label)}</td><td>${charge.amount.toLocaleString()} 元</td></tr>`)
@@ -171,6 +171,13 @@ async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
       }),
     )
   ).join('')
+  const attachmentsSection = record.attachments.length > 0
+    ? `
+  <section class="attachments-section">
+    <h2>附件清單</h2>
+    <div class="attachments">${attachments}</div>
+  </section>`
+    : ''
 
   return `<!doctype html>
 <html lang="zh-Hant">
@@ -216,10 +223,7 @@ async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
     <h2>收費內容</h2>
     <table>${charges}<tr><th>總金額</th><td>${total.toLocaleString()} 元</td></tr></table>
   </section>
-  <section class="attachments-section">
-    <h2>附件清單</h2>
-    <div class="attachments">${attachments || '<p>無附件</p>'}</div>
-  </section>
+${attachmentsSection}
 </body>
 </html>`
 }
