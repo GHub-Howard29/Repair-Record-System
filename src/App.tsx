@@ -94,7 +94,7 @@ function App() {
   )
   const [attachmentMessage, setAttachmentMessage] = useState('可先加入照片，儲存維修單後會自動上傳。')
   const [syncMessage, setSyncMessage] = useState('同步清單會保留維修單與照片，連線恢復後會再次送出。')
-  const [exportMessage, setExportMessage] = useState('可匯出單筆維修紀錄或全部資料。')
+  const [exportMessage, setExportMessage] = useState('可匯出單筆維修紀錄或全部資料；PDF 列印時請取消勾選「頁首及頁尾」。')
   const [exportSelectionMode, setExportSelectionMode] = useState<'pdf' | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<RepairAttachment | null>(null)
   const [authMessage, setAuthMessage] = useState(
@@ -534,7 +534,7 @@ function App() {
   async function exportRecordPdf(record: RepairRecord) {
     try {
       await browserExportService.exportRecordPdf(record)
-      setExportMessage('已開啟列印視窗，可選擇另存 PDF。')
+      setExportMessage('已開啟列印視窗；請在「更多設定」取消勾選「頁首及頁尾」，再另存 PDF。')
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : 'PDF 匯出失敗。')
     }
