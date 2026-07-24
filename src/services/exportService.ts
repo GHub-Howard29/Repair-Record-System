@@ -23,7 +23,6 @@ export const browserExportService: ExportService = {
       return
     }
 
-    const previewWindow = openMobilePdfPreviewWindow()
     const source = createPdfExportElement(await buildRepairPrintHtml(record))
     const filename = `${getPdfExportTitle(record)}.pdf`
 
@@ -41,7 +40,7 @@ export const browserExportService: ExportService = {
         .from(source.element)
         .outputPdf('blob') as Blob
 
-      await downloadAndPreviewPdf(pdfBlob, filename, previewWindow)
+      await sharePdfWithMobileApps(pdfBlob, filename)
     } finally {
       source.dispose()
     }
@@ -412,18 +411,6 @@ async function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachmen
   }
 }
 
-function openMobilePdfPreviewWindow(): Window | null {
-  const previewWindow = window.open('', '_blank')
-
-  if (!previewWindow) {
-    return null
-  }
-
-  previewWindow.document.write(`<!doctype html><title>PDF 預覽</title><p style="font-family:system-ui,sans-serif;padding:24px">PDF 產生中，完成後將開啟預覽。</p>`)
-  previewWindow.document.close()
-  return previewWindow
-}
-
 function createPdfExportElement(printHtml: string): { element: HTMLElement; dispose: () => void } {
   const printDocument = new DOMParser().parseFromString(printHtml, 'text/html')
   const element = document.createElement('article')
@@ -432,7 +419,7 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
 
   element.id = 'pdf-export-source'
   element.innerHTML = printDocument.body.innerHTML
-  element.style.cssText = 'position:absolute; left:0; top:0; z-index:-1; width:794px; box-sizing:border-box; background:#ffffff; color:#172033;'
+  element.style.cssText = 'position:fixed; left:-10000px; top:0; width:794px; box-sizing:border-box; background:#ffffff; color:#172033;'
   style.textContent = printStyles.replaceAll('body', '#pdf-export-source')
   element.prepend(style)
   document.body.append(element)
@@ -470,28 +457,32 @@ function waitForImageOrTimeout(image: HTMLImageElement, timeoutMs: number): Prom
   })
 }
 
-async function downloadAndPreviewPdf(pdfBlob: Blob, filename: string, previewWindow: Window | null): Promise<void> {
+async function sharePdfWithMobileApps(pdfBlob: Blob, filename: string): Promise<void> {
   const pdfHeader = new TextDecoder().decode(await pdfBlob.slice(0, 5).arrayBuffer())
 
   if (pdfBlob.size === 0 || pdfHeader !== '%PDF-') {
-    previewWindow?.close()
     throw new Error('PDF 產生失敗，請稍後再試。')
   }
 
-  const pdfUrl = URL.createObjectURL(pdfBlob)
-  const downloadLink = document.createElement('a')
-
-  downloadLink.href = pdfUrl
-  downloadLink.download = filename
-  document.body.append(downloadLink)
-  downloadLink.click()
-  downloadLink.remove()
-
-  if (previewWindow && !previewWindow.closed) {
-    previewWindow.location.replace(pdfUrl)
+  const file = new File([pdfBlob], filename, { type: 'application/pdf' })
+  const shareNavigator = navigator as Navigator & {
+    canShare?: (data: ShareData) => boolean
+    share?: (data: ShareData) => Promise<void>
   }
 
-  window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 300_000)
+  if (!shareNavigator.share || !shareNavigator.canShare?.({ files: [file] })) {
+    throw new Error('此手機瀏覽器不支援將 PDF 交由其他應用程式開啟，請改用 Chrome 或 Safari。')
+  }
+
+  try {
+    await shareNavigator.share({ files: [file], title: filename })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return
+    }
+
+    throw new Error('無法開啟 PDF 應用程式選擇視窗，請稍後再試。', { cause: error })
+  }
 }
 
 function sanitizeFilenamePart(value: string): string {
