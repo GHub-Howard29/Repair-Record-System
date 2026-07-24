@@ -527,7 +527,7 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   // 等比例縮放、不裁切；電腦版瀏覽器列印保留原有圖片樣式。
   style.textContent = `${printStyles.replaceAll('body', '#pdf-export-source')}
     #pdf-export-source .company-name { transform: none; }
-    #pdf-export-source .attachments figure { display: grid; grid-template-rows: 230px auto; }
+    #pdf-export-source .attachments figure { display: grid; grid-template-rows: 260px auto; }
     #pdf-export-source .attachment-image-frame {
       display: flex;
       align-items: center;
