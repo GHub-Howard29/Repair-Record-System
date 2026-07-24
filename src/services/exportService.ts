@@ -23,10 +23,12 @@ export const browserExportService: ExportService = {
       return
     }
 
+    const previewWindow = openMobilePdfPreviewWindow()
     const source = createPdfExportElement(await buildRepairPrintHtml(record))
     const filename = `${getPdfExportTitle(record)}.pdf`
 
     try {
+      await waitForPdfSourceReady(source.element)
       const { default: html2pdf } = await import('html2pdf.js')
       const pdfBlob = await html2pdf()
         .set({
@@ -39,7 +41,7 @@ export const browserExportService: ExportService = {
         .from(source.element)
         .outputPdf('blob') as Blob
 
-      await previewOrSharePdf(pdfBlob, filename)
+      await downloadAndPreviewPdf(pdfBlob, filename, previewWindow)
     } finally {
       source.dispose()
     }
@@ -343,7 +345,9 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
   <title>${escapeHtml(getPdfExportTitle(record))}</title>
   <style>
     body { font-family: system-ui, "Noto Sans TC", sans-serif; margin: 32px; color: #172033; }
-    h1 { margin: 0 0 20px; }
+    .report-header { margin: 0 0 20px; }
+    .company-name { margin: 0 0 8px; text-align: center; transform: translateY(-1em); font-family: "DFKai-SB", "BiauKai", "標楷體", serif; font-size: 2em; font-weight: 700; }
+    h1 { margin: 0; }
     section { margin-top: 20px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #d8dee9; padding: 8px 10px; text-align: left; vertical-align: top; }
@@ -360,7 +364,10 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
   </style>
 </head>
 <body>
-  <h1>維修紀錄</h1>
+  <header class="report-header">
+    <p class="company-name">庭茂農業生技股份有限公司</p>
+    <h1>維修紀錄</h1>
+  </header>
   <section>
     <table>
       <tr><th>收到日期</th><td>${escapeHtml(record.receivedDate)}</td></tr>
@@ -405,6 +412,18 @@ async function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachmen
   }
 }
 
+function openMobilePdfPreviewWindow(): Window | null {
+  const previewWindow = window.open('', '_blank')
+
+  if (!previewWindow) {
+    return null
+  }
+
+  previewWindow.document.write(`<!doctype html><title>PDF 預覽</title><p style="font-family:system-ui,sans-serif;padding:24px">PDF 產生中，完成後將開啟預覽。</p>`)
+  previewWindow.document.close()
+  return previewWindow
+}
+
 function createPdfExportElement(printHtml: string): { element: HTMLElement; dispose: () => void } {
   const printDocument = new DOMParser().parseFromString(printHtml, 'text/html')
   const element = document.createElement('article')
@@ -424,22 +443,39 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   }
 }
 
-async function previewOrSharePdf(pdfBlob: Blob, filename: string): Promise<void> {
-  const file = new File([pdfBlob], filename, { type: 'application/pdf' })
-  const shareNavigator = navigator as Navigator & {
-    canShare?: (data: ShareData) => boolean
-    share?: (data: ShareData) => Promise<void>
+async function waitForPdfSourceReady(source: HTMLElement): Promise<void> {
+  const images = Array.from(source.querySelectorAll('img'))
+
+  await Promise.all(images.map((image) => waitForImageOrTimeout(image, 5_000)))
+  await Promise.race([
+    document.fonts.ready,
+    new Promise<void>((resolve) => window.setTimeout(resolve, 1_500)),
+  ])
+}
+
+function waitForImageOrTimeout(image: HTMLImageElement, timeoutMs: number): Promise<void> {
+  if (image.complete) {
+    return Promise.resolve()
   }
 
-  if (shareNavigator.canShare?.({ files: [file] }) && shareNavigator.share) {
-    try {
-      await shareNavigator.share({ files: [file], title: filename })
-      return
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return
-      }
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(resolve, timeoutMs)
+    const finish = () => {
+      window.clearTimeout(timeoutId)
+      resolve()
     }
+
+    image.addEventListener('load', finish, { once: true })
+    image.addEventListener('error', finish, { once: true })
+  })
+}
+
+async function downloadAndPreviewPdf(pdfBlob: Blob, filename: string, previewWindow: Window | null): Promise<void> {
+  const pdfHeader = new TextDecoder().decode(await pdfBlob.slice(0, 5).arrayBuffer())
+
+  if (pdfBlob.size === 0 || pdfHeader !== '%PDF-') {
+    previewWindow?.close()
+    throw new Error('PDF 產生失敗，請稍後再試。')
   }
 
   const pdfUrl = URL.createObjectURL(pdfBlob)
@@ -450,7 +486,12 @@ async function previewOrSharePdf(pdfBlob: Blob, filename: string): Promise<void>
   document.body.append(downloadLink)
   downloadLink.click()
   downloadLink.remove()
-  window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000)
+
+  if (previewWindow && !previewWindow.closed) {
+    previewWindow.location.replace(pdfUrl)
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 300_000)
 }
 
 function sanitizeFilenamePart(value: string): string {

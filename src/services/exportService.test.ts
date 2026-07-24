@@ -82,6 +82,14 @@ describe('列印維修紀錄', () => {
     expect(html).not.toContain('<section class="attachments-section">')
   })
 
+  it('PDF 標題上方會顯示置中的公司名稱', async () => {
+    const html = await buildRepairPrintHtml(record)
+
+    expect(html).toContain('庭茂農業生技股份有限公司')
+    expect(html).toContain('font-family: "DFKai-SB", "BiauKai", "標楷體", serif')
+    expect(html).toContain('text-align: center')
+  })
+
   it('有附件時產生附件清單頁面', async () => {
     const html = await buildRepairPrintHtml({
       ...record,
