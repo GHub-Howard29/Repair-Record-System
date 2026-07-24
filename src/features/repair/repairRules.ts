@@ -1,5 +1,5 @@
 import type { RepairCharge, RepairFormValues, RepairRecord } from '../../types/repair'
-import { appendWarrantyNote, isUnderWarranty } from '../warranty/warranty'
+import { isValidIsoDate } from '../warranty/warranty'
 
 const baseCharges: RepairCharge[] = [
   { id: 'inspection', label: '檢修測試費', amount: 0, kind: 'inspection' },
@@ -17,8 +17,16 @@ export function getRepairStatusLabel(record: Pick<RepairRecord, 'returnedDate'>)
 export function validateRepairForm(values: RepairFormValues): string[] {
   const errors: string[] = []
 
-  if (!values.receivedDate) {
-    errors.push('請填寫收到日期。')
+  if (!isValidIsoDate(values.receivedDate)) {
+    errors.push('請填寫正確的收到日期。')
+  }
+
+  if (values.shippedDate && !isValidIsoDate(values.shippedDate)) {
+    errors.push('請填寫正確的出貨日期。')
+  }
+
+  if (values.repairDate && !isValidIsoDate(values.repairDate)) {
+    errors.push('請填寫正確的維修日期。')
   }
 
   if (!values.returnLocation.trim()) {
@@ -107,7 +115,6 @@ export function buildRepairRecord(
 ): RepairRecord {
   const now = new Date().toISOString()
   const faultParts = parseFaultParts(values.faultPartsText)
-  const underWarranty = isUnderWarranty(values.shippedDate, values.repairDate || values.receivedDate)
   const partCharges = faultParts.map<RepairCharge>((part) => {
     const existingCharge = existingRecord?.charges.find((charge) => charge.label === part)
 
@@ -131,7 +138,7 @@ export function buildRepairRecord(
     faultCategory: values.faultCategory.trim(),
     faultParts,
     repairContent: values.repairContent.trim(),
-    note: underWarranty ? appendWarrantyNote(values.note) : values.note.trim(),
+    note: values.note.trim(),
     returnedDate: values.returnedDate,
     charges: [
       { ...baseCharges[0], amount: Number(values.inspectionFee) || 0 },

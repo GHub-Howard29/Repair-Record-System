@@ -37,6 +37,8 @@ import {
   validateAttachmentFile,
 } from './features/attachment/attachmentRules'
 import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS } from './features/repair/repairOptions'
+import { getPurchaseTypeLabel } from './features/repair/purchaseType'
+import { getWarrantyStatus } from './features/warranty/warranty'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
 import { googleDriveAttachmentService } from './services/googleDriveAttachmentService'
 import { browserExportService } from './services/exportService'
@@ -68,6 +70,43 @@ function getHistoryChargeSummary(record: RepairRecord): string {
   const chargedItems = record.charges.filter((charge) => charge.amount !== 0).map((charge) => charge.label)
 
   return chargedItems.length > 0 ? chargedItems.join('、') : '無收費項目'
+}
+
+function formatManualDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+
+  if (digits.length <= 4) {
+    return digits
+  }
+
+  if (digits.length <= 6) {
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`
+  }
+
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`
+}
+
+function DateField({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      placeholder="YYYY-MM-DD"
+      maxLength={10}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(formatManualDate(event.target.value))}
+    />
+  )
 }
 
 function App() {
@@ -757,7 +796,9 @@ function App() {
                     }}
                   >
                     <strong>{record.serialNumber}</strong>
-                    <span>{record.customerName || record.returnLocation}</span>
+                    <span>
+                      {record.returnLocation || '未填寫'}／{record.customerName || '未填寫'}／{getPurchaseTypeLabel(record.purchaseType)}
+                    </span>
                     <small>
                       {record.receivedDate} · {getRepairStatusLabel(record)}{record.attachments.length > 0 ? '（有附件）' : ''}
                     </small>
@@ -819,11 +860,10 @@ function App() {
           <form className="repair-form" onSubmit={(event) => event.preventDefault()}>
             <label>
               收到日期 *
-              <input
-                type="date"
+              <DateField
                 value={form.receivedDate}
                 disabled={completed}
-                onChange={(event) => updateForm('receivedDate', event.target.value)}
+                onChange={(value) => updateForm('receivedDate', value)}
               />
             </label>
             <label>
@@ -861,11 +901,10 @@ function App() {
             </label>
             <label>
               出貨日期
-              <input
-                type="date"
+              <DateField
                 value={form.shippedDate}
                 disabled={completed}
-                onChange={(event) => updateForm('shippedDate', event.target.value)}
+                onChange={(value) => updateForm('shippedDate', value)}
               />
             </label>
             <label>
@@ -883,11 +922,10 @@ function App() {
             </label>
             <label>
               維修日期
-              <input
-                type="date"
+              <DateField
                 value={form.repairDate}
                 disabled={completed}
-                onChange={(event) => updateForm('repairDate', event.target.value)}
+                onChange={(value) => updateForm('repairDate', value)}
               />
             </label>
             <label>
@@ -904,6 +942,14 @@ function App() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              保固期判斷
+              <input
+                value={getWarrantyStatus(form.receivedDate, form.shippedDate)}
+                disabled
+                readOnly
+              />
             </label>
             <fieldset className="wide-field option-fieldset" disabled={completed}>
               故障零件

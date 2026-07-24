@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildRepairExportRows, buildRepairPrintHtml } from './exportService'
+import { buildChargeExportRows, buildRepairExportRows, buildRepairPrintHtml } from './exportService'
 import type { RepairRecord } from '../types/repair'
 
 const record: RepairRecord = {
@@ -31,9 +31,17 @@ describe('Excel 匯出資料', () => {
     const [row] = buildRepairExportRows([record])
 
     expect(row).toEqual([
-      '2026-07-17', '台北', '王小明', 'NIS-12AB34CD56EF', '', 'customer', '', '自然損壞', '水泵',
+      '2026-07-17', '台北', '王小明', 'NIS-12AB34CD56EF', '', '客人', '', '自然損壞', '尚待確認', '水泵',
       '更換水泵', '', '2026-07-20', 180,
     ])
+  })
+})
+
+describe('收費項目匯出', () => {
+  it('略過金額為零的檢修費', () => {
+    const rows = buildChargeExportRows([{ ...record, charges: [{ id: 'inspection', label: '檢修測試費', amount: 0, kind: 'inspection' }] }])
+
+    expect(rows).toEqual([])
   })
 })
 

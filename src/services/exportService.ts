@@ -1,4 +1,6 @@
 import type { RepairRecord } from '../types/repair'
+import { getPurchaseTypeLabel } from '../features/repair/purchaseType'
+import { getWarrantyStatus } from '../features/warranty/warranty'
 
 export interface ExportService {
   exportRecordPdf(record: RepairRecord): Promise<void>
@@ -121,6 +123,7 @@ const EXPORT_HEADERS = [
     '購買屬性',
     '維修日期',
     '故障分類',
+    '保固期判斷',
     '故障零件',
     '維修內容',
     '備註',
@@ -137,9 +140,10 @@ export function buildRepairExportRows(records: RepairRecord[]): Array<Array<stri
     record.customerName,
     record.serialNumber,
     record.shippedDate,
-    record.purchaseType,
+    getPurchaseTypeLabel(record.purchaseType),
     record.repairDate,
     record.faultCategory,
+    getWarrantyStatus(record.receivedDate, record.shippedDate),
     record.faultParts.join('、'),
     record.repairContent,
     record.note,
@@ -148,9 +152,11 @@ export function buildRepairExportRows(records: RepairRecord[]): Array<Array<stri
   ])
 }
 
-function buildChargeExportRows(records: RepairRecord[]): Array<Array<string | number>> {
+export function buildChargeExportRows(records: RepairRecord[]): Array<Array<string | number>> {
   return records.flatMap((record) =>
-    record.charges.map((charge) => [record.serialNumber, record.receivedDate, charge.label, charge.amount]),
+    record.charges
+      .filter((charge) => charge.kind !== 'inspection' || charge.amount !== 0)
+      .map((charge) => [record.serialNumber, record.receivedDate, charge.label, charge.amount]),
   )
 }
 
@@ -211,8 +217,10 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
       <tr><th>客戶姓名</th><td>${escapeHtml(record.customerName)}</td></tr>
       <tr><th>製造號碼</th><td>${escapeHtml(record.serialNumber)}</td></tr>
       <tr><th>出貨日期</th><td>${escapeHtml(record.shippedDate)}</td></tr>
+      <tr><th>購買屬性</th><td>${escapeHtml(getPurchaseTypeLabel(record.purchaseType))}</td></tr>
       <tr><th>維修日期</th><td>${escapeHtml(record.repairDate)}</td></tr>
       <tr><th>故障分類</th><td>${escapeHtml(record.faultCategory)}</td></tr>
+      <tr><th>保固期判斷</th><td>${escapeHtml(getWarrantyStatus(record.receivedDate, record.shippedDate))}</td></tr>
       <tr><th>故障零件</th><td>${escapeHtml(record.faultParts.join('、'))}</td></tr>
       <tr><th>維修內容</th><td>${escapeHtml(record.repairContent)}</td></tr>
       <tr><th>備註</th><td>${escapeHtml(record.note)}</td></tr>
