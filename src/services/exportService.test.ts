@@ -3,6 +3,7 @@ import {
   buildChargeExportRows,
   buildRepairExportRows,
   buildRepairPrintHtml,
+  getPdfPageSlices,
   getPdfExportTitle,
   normalizeExcelText,
   REPAIR_EXPORT_COLUMNS,
@@ -71,6 +72,14 @@ describe('收費項目匯出', () => {
 })
 
 describe('列印維修紀錄', () => {
+  it('手機 PDF 會在附件清單前強制換頁', () => {
+    expect(getPdfPageSlices(2_400, 1_000, [720])).toEqual([
+      { offset: 0, height: 720 },
+      { offset: 720, height: 1_000 },
+      { offset: 1_720, height: 680 },
+    ])
+  })
+
   it('PDF 檔名會包含送回日期與客戶名稱', () => {
     expect(getPdfExportTitle(record)).toBe('維修報告_20260720_王小明')
   })

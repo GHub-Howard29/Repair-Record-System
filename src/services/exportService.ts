@@ -68,7 +68,7 @@ const PDF_RENDER_WIDTH_PX = 794
 
 /**
  * 行動瀏覽器對單一超長 canvas 的尺寸與記憶體限制很低。將報告切成 A4 高度的
- * 小 canvas 再逐頁寫入 PDF，可避免 html2pdf 在手機上產生看似有效的空白檔案。
+ * 小 canvas 再逐頁寫入 PDF，可避免行動瀏覽器產生看似有效的空白檔案。
  */
 async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -81,9 +81,12 @@ async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
   const pageHeightPx = Math.floor((sourceWidth * contentHeightMm) / contentWidthMm)
   const sourceHeight = Math.ceil(source.scrollHeight)
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true })
+  const sourceTop = source.getBoundingClientRect().top
+  const attachmentPageBreaks = Array.from(source.querySelectorAll<HTMLElement>('.attachments-section'))
+    .map((section) => Math.round(section.getBoundingClientRect().top - sourceTop))
+  const pageSlices = getPdfPageSlices(sourceHeight, pageHeightPx, attachmentPageBreaks)
 
-  for (let offset = 0; offset < sourceHeight; offset += pageHeightPx) {
-    const renderHeight = Math.min(pageHeightPx, sourceHeight - offset)
+  for (const { offset, height: renderHeight } of pageSlices) {
     const canvas = await html2canvas(source, {
       backgroundColor: '#ffffff',
       height: renderHeight,
@@ -110,6 +113,29 @@ async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
   }
 
   return pdf.output('blob')
+}
+
+export function getPdfPageSlices(
+  sourceHeight: number,
+  pageHeight: number,
+  forcedPageBreaks: number[] = [],
+): Array<{ offset: number; height: number }> {
+  const validBreaks = [...new Set(forcedPageBreaks)]
+    .filter((offset) => offset > 0 && offset < sourceHeight)
+    .sort((left, right) => left - right)
+  const slices: Array<{ offset: number; height: number }> = []
+  let offset = 0
+
+  while (offset < sourceHeight) {
+    const naturalEnd = Math.min(offset + pageHeight, sourceHeight)
+    const forcedEnd = validBreaks.find((breakOffset) => breakOffset > offset && breakOffset < naturalEnd)
+    const end = forcedEnd ?? naturalEnd
+
+    slices.push({ offset, height: end - offset })
+    offset = end
+  }
+
+  return slices
 }
 
 function canvasContainsReportContent(canvas: HTMLCanvasElement): boolean {
