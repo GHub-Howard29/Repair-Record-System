@@ -93,6 +93,7 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 - `docs/04_工作規範.md`：後續開發規範。
 - `docs/05_交接紀錄.md`：目前進度、未完成事項與下一步。
 - `docs/06_外部資源連結設定.md`：Google OAuth、GitHub Pages、Firestore、Google Drive 與部署資源設定。
+- `docs/07_專案現況.md`：僅記錄目前已完成能力與後續待辦的最新快照。
 - `src/agent.ts`：給後續 agent/開發者快速掌握專案規則的入口。
 
 ## 下一步
