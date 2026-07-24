@@ -18,34 +18,31 @@ export const pendingExportService: ExportService = {
 
 export const browserExportService: ExportService = {
   async exportRecordPdf(record) {
-    const frame = document.createElement('iframe')
-    const isMobilePrint = window.matchMedia('(max-width: 720px)').matches
-
-    frame.setAttribute('aria-hidden', 'true')
-    frame.style.cssText = 'position:fixed; left:-10000px; top:-10000px; width:794px; height:1123px; border:0;'
-    document.body.append(frame)
-
-    const printDocument = frame.contentDocument
-    const printWindow = frame.contentWindow
-
-    if (!printDocument || !printWindow) {
-      frame.remove()
-      throw new Error('無法建立列印文件。')
+    if (!isMobileDevice()) {
+      await printPdfOnDesktop(record)
+      return
     }
 
-    printDocument.write(await buildRepairPrintHtml(record))
-    printDocument.close()
-    await waitForPrintDocumentReady(printDocument)
+    const source = createPdfExportElement(await buildRepairPrintHtml(record))
+    const filename = `${getPdfExportTitle(record)}.pdf`
 
-    if (isMobilePrint) {
-      // 行動瀏覽器的另存 PDF 在 print() 返回後仍可能讀取列印來源。
-      window.setTimeout(() => frame.remove(), 120_000)
-    } else {
-      printWindow.addEventListener('afterprint', () => window.setTimeout(() => frame.remove(), 0), { once: true })
+    try {
+      const { default: html2pdf } = await import('html2pdf.js')
+      const pdfBlob = await html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename,
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        })
+        .from(source.element)
+        .outputPdf('blob') as Blob
+
+      await previewOrSharePdf(pdfBlob, filename)
+    } finally {
+      source.dispose()
     }
-
-    printWindow.focus()
-    printWindow.print()
   },
   async exportRecordsExcel(records) {
     const XLSX = await import('xlsx-js-style')
@@ -71,6 +68,51 @@ export const browserExportService: ExportService = {
     XLSX.writeFile(workbook, filename, { compression: true })
     return 'downloaded'
   },
+}
+
+async function printPdfOnDesktop(record: RepairRecord): Promise<void> {
+  const frame = document.createElement('iframe')
+  const originalTitle = document.title
+  const printTitle = getPdfExportTitle(record)
+
+  frame.setAttribute('aria-hidden', 'true')
+  frame.style.cssText = 'position:fixed; width:0; height:0; border:0; visibility:hidden;'
+  document.body.append(frame)
+
+  const printDocument = frame.contentDocument
+  const printWindow = frame.contentWindow
+
+  if (!printDocument || !printWindow) {
+    frame.remove()
+    throw new Error('無法建立列印文件。')
+  }
+
+  const cleanup = () => {
+    document.title = originalTitle
+    window.setTimeout(() => frame.remove(), 0)
+  }
+
+  printWindow.addEventListener('afterprint', cleanup, { once: true })
+
+  try {
+    printDocument.write(await buildRepairPrintHtml(record))
+    printDocument.close()
+    document.title = printTitle
+    window.setTimeout(() => {
+      printWindow.focus()
+      printWindow.print()
+    }, 0)
+  } catch (error) {
+    cleanup()
+    throw error
+  }
+}
+
+function isMobileDevice(): boolean {
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const iPadDesktopUserAgent = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+
+  return mobileUserAgent || iPadDesktopUserAgent
 }
 
 interface BrowserFileHandle {
@@ -363,32 +405,52 @@ async function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachmen
   }
 }
 
-async function waitForPrintDocumentReady(printDocument: Document): Promise<void> {
-  const images = Array.from(printDocument.images)
+function createPdfExportElement(printHtml: string): { element: HTMLElement; dispose: () => void } {
+  const printDocument = new DOMParser().parseFromString(printHtml, 'text/html')
+  const element = document.createElement('article')
+  const style = document.createElement('style')
+  const printStyles = printDocument.querySelector('style')?.textContent ?? ''
 
-  await Promise.all(images.map((image) => waitForImageOrTimeout(image, 5_000)))
-  await Promise.race([
-    printDocument.fonts.ready,
-    new Promise<void>((resolve) => window.setTimeout(resolve, 1_500)),
-  ])
-  await new Promise<void>((resolve) => window.setTimeout(resolve, 100))
+  element.id = 'pdf-export-source'
+  element.innerHTML = printDocument.body.innerHTML
+  element.style.cssText = 'position:absolute; left:0; top:0; z-index:-1; width:794px; box-sizing:border-box; background:#ffffff; color:#172033;'
+  style.textContent = printStyles.replaceAll('body', '#pdf-export-source')
+  element.prepend(style)
+  document.body.append(element)
+
+  return {
+    element,
+    dispose: () => element.remove(),
+  }
 }
 
-function waitForImageOrTimeout(image: HTMLImageElement, timeoutMs: number): Promise<void> {
-  if (image.complete) {
-    return Promise.resolve()
+async function previewOrSharePdf(pdfBlob: Blob, filename: string): Promise<void> {
+  const file = new File([pdfBlob], filename, { type: 'application/pdf' })
+  const shareNavigator = navigator as Navigator & {
+    canShare?: (data: ShareData) => boolean
+    share?: (data: ShareData) => Promise<void>
   }
 
-  return new Promise((resolve) => {
-    const timeoutId = window.setTimeout(resolve, timeoutMs)
-    const finish = () => {
-      window.clearTimeout(timeoutId)
-      resolve()
+  if (shareNavigator.canShare?.({ files: [file] }) && shareNavigator.share) {
+    try {
+      await shareNavigator.share({ files: [file], title: filename })
+      return
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
     }
+  }
 
-    image.addEventListener('load', finish, { once: true })
-    image.addEventListener('error', finish, { once: true })
-  })
+  const pdfUrl = URL.createObjectURL(pdfBlob)
+  const downloadLink = document.createElement('a')
+
+  downloadLink.href = pdfUrl
+  downloadLink.download = filename
+  document.body.append(downloadLink)
+  downloadLink.click()
+  downloadLink.remove()
+  window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000)
 }
 
 function sanitizeFilenamePart(value: string): string {
