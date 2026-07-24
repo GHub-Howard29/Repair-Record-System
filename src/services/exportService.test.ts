@@ -125,5 +125,6 @@ describe('列印維修紀錄', () => {
 
     expect(html).toContain('附件清單')
     expect(html).toContain('attachments-section')
+    expect(html).toContain('attachment-image-frame')
   })
 })

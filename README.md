@@ -98,6 +98,6 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 
 ## 下一步
 
-1. 實機驗證 Drive 已同步照片的預覽與重新載入後顯示。
-2. 驗證完成案件儲存、統計卡篩選與手機窄版版面。
-3. 補上同步、Firestore fallback 與附件預覽的自動化測試。
+1. 實機驗證手機 PDF 附件清單的照片框，確認直拍與橫拍照片都以正確比例置中呈現。
+2. 在手機窄版驗證附件、收費摘要、歷史維修與功能選單的捲動及操作。
+3. 確認 GitHub Actions 工作流程使用的 Secrets 名稱與正式部署環境設定一致。

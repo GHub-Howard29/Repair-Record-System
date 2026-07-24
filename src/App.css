@@ -412,7 +412,7 @@ body,
   background: #ffffff;
 }
 
-.repair-form .date-field .date-text-input {
+.date-field .date-text-input {
   min-width: 0;
   border: 0;
   border-radius: 0;
@@ -437,7 +437,7 @@ body,
   opacity: 0.62;
 }
 
-.repair-form .date-picker-control {
+.date-picker-control {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -449,7 +449,7 @@ body,
   pointer-events: none;
 }
 
-.repair-form .date-picker-control:disabled {
+.date-picker-control:disabled {
   opacity: 0;
 }
 

@@ -798,22 +798,22 @@ function App() {
             </label>
             <label>
               開始日期
-              <input
-                type="date"
+              <DateField
                 value={startDateFilter}
-                onChange={(event) => {
-                  setStartDateFilter(event.target.value)
+                disabled={false}
+                onChange={(value) => {
+                  setStartDateFilter(value)
                   setIsStatusFilterExplicit(false)
                 }}
               />
             </label>
             <label>
               結束日期
-              <input
-                type="date"
+              <DateField
                 value={endDateFilter}
-                onChange={(event) => {
-                  setEndDateFilter(event.target.value)
+                disabled={false}
+                onChange={(value) => {
+                  setEndDateFilter(value)
                   setIsStatusFilterExplicit(false)
                 }}
               />

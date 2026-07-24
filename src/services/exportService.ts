@@ -425,7 +425,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
       const description = escapeHtml(attachment.label || '未填寫照片說明')
 
       return previewUrl
-        ? `<figure><img src="${escapeHtml(previewUrl)}" alt="${description}" /><figcaption>${description}</figcaption></figure>`
+        ? `<figure><div class="attachment-image-frame"><img src="${escapeHtml(previewUrl)}" alt="${description}" /></div><figcaption>${description}</figcaption></figure>`
         : `<div class="attachment-fallback">${description} - ${escapeHtml(attachment.fileName)}</div>`
       }),
     )
@@ -522,16 +522,29 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   element.innerHTML = printDocument.body.innerHTML
   element.style.cssText = 'position:fixed; left:0; top:0; z-index:2147483647; width:794px; min-height:1123px; box-sizing:border-box; background:#ffffff; color:#172033; overflow:auto;'
   // 電腦列印保留原有的標題微調；手機逐頁擷取時，負的 translateY 會讓標題跨出
-  // 第一頁畫布而被裁切，因此只在這個暫存匯出容器取消位移。行動版 Canvas
-  // 也不能沿用列印縮圖的 max-height/object-fit 組合，否則直式照片會被強制
-  // 壓進固定高度而變形；改以圖片本身比例自動計算高度。
+  // 第一頁畫布而被裁切，因此只在這個暫存匯出容器取消位移。附件照片僅在手機
+  // Canvas 匯出時使用固定框，讓最多五張照片可排進一張 A4 直式頁面，再在框內
+  // 等比例縮放、不裁切；電腦版瀏覽器列印保留原有圖片樣式。
   style.textContent = `${printStyles.replaceAll('body', '#pdf-export-source')}
     #pdf-export-source .company-name { transform: none; }
-    #pdf-export-source figure img {
+    #pdf-export-source .attachments figure { display: grid; grid-template-rows: 230px auto; }
+    #pdf-export-source .attachment-image-frame {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid #d8dee9;
+      border-radius: 4px;
+    }
+    #pdf-export-source .attachment-image-frame img {
+      display: block;
+      width: auto;
       height: auto;
-      max-height: none;
-      aspect-ratio: auto;
-      object-fit: initial;
+      max-width: 100%;
+      max-height: 100%;
+      border: 0;
+      border-radius: 0;
+      object-fit: contain;
     }
   `
   element.prepend(style)
