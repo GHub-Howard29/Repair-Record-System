@@ -72,7 +72,7 @@ function getHistoryChargeSummary(record: RepairRecord): string {
   return chargedItems.length > 0 ? chargedItems.join('、') : '無收費項目'
 }
 
-function formatManualDate(value: string): string {
+function formatDateInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8)
 
   if (digits.length <= 4) {
@@ -80,10 +80,32 @@ function formatManualDate(value: string): string {
   }
 
   if (digits.length <= 6) {
-    return `${digits.slice(0, 4)}-${digits.slice(4)}`
+    return `${digits.slice(0, 4)}/${digits.slice(4)}`
   }
 
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`
+  return `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6)}`
+}
+
+function isDateInputInRange(value: string): boolean {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length >= 6) {
+    const month = Number(digits.slice(4, 6))
+
+    if (month < 1 || month > 12) {
+      return false
+    }
+  }
+
+  if (digits.length === 8) {
+    const day = Number(digits.slice(6, 8))
+
+    if (day < 1 || day > 31) {
+      return false
+    }
+  }
+
+  return true
 }
 
 function DateField({
@@ -95,17 +117,58 @@ function DateField({
   disabled: boolean
   onChange: (value: string) => void
 }) {
+  const pickerRef = useRef<HTMLInputElement>(null)
+
+  function chooseDate() {
+    const picker = pickerRef.current
+
+    if (!picker) {
+      return
+    }
+
+    if (typeof picker.showPicker === 'function') {
+      picker.showPicker()
+      return
+    }
+
+    picker.focus()
+  }
+
   return (
-    <input
-      type="text"
-      inputMode="numeric"
-      autoComplete="off"
-      placeholder="YYYY-MM-DD"
-      maxLength={10}
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(formatManualDate(event.target.value))}
-    />
+    <div className="date-field" aria-label="日期輸入">
+      <input
+        className="date-text-input"
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="YYYY/MM/DD"
+        maxLength={10}
+        value={formatDateInput(value)}
+        disabled={disabled}
+        aria-label="日期，請輸入年份 4 碼、月份 2 碼、日期 2 碼"
+        onChange={(event) => {
+          const nextValue = formatDateInput(event.target.value)
+
+          if (isDateInputInRange(nextValue)) {
+            onChange(nextValue.replaceAll('/', '-'))
+          }
+        }}
+      />
+      <button type="button" className="date-picker-button" onClick={chooseDate} disabled={disabled} aria-label="選擇日期">
+        📅
+      </button>
+      <input
+        ref={pickerRef}
+        className="date-picker-control"
+        type="date"
+        value={/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''}
+        disabled={disabled}
+        tabIndex={-1}
+        onChange={(event) => {
+          onChange(event.target.value)
+        }}
+      />
+    </div>
   )
 }
 
@@ -908,14 +971,14 @@ function App() {
               />
             </label>
             <label>
-              購買屬性
+              機器屬性
               <select
                 value={form.purchaseType}
                 disabled={completed}
                 onChange={(event) => updateForm('purchaseType', event.target.value as PurchaseType)}
               >
                 <option value="">未選擇</option>
-                <option value="customer">客人</option>
+                <option value="customer">門市客人</option>
                 <option value="online">網購</option>
                 <option value="demo">展示機</option>
               </select>
@@ -1166,7 +1229,7 @@ function App() {
                     ))}
                   </ul>
                   <div className="total-row">
-                    <span>總金額</span>
+                    <span>維修總金額</span>
                     <strong>{sumCharges(selectedRecord.charges).toLocaleString()} 元</strong>
                   </div>
                 </>
@@ -1191,7 +1254,7 @@ function App() {
                   ))}
                 </ul>
                 <div className="total-row">
-                  <span>總金額</span>
+                  <span>維修總金額</span>
                   <strong>{sumCharges(selectedRecord.charges).toLocaleString()} 元</strong>
                 </div>
               </>

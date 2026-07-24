@@ -42,16 +42,17 @@ export const browserExportService: ExportService = {
     }, 0)
   },
   async exportRecordsExcel(records) {
-    const XLSX = await import('xlsx')
+    const XLSX = await import('xlsx-js-style')
     const workbook = XLSX.utils.book_new()
-    const recordsSheet = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...buildRepairExportRows(records)])
-    const chargesSheet = XLSX.utils.aoa_to_sheet([CHARGE_HEADERS, ...buildChargeExportRows(records)])
+    const repairRows = buildRepairExportRows(records)
+    const chargeRows = buildChargeExportRows(records)
+    const recordsSheet = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...repairRows])
+    const chargesSheet = XLSX.utils.aoa_to_sheet([CHARGE_HEADERS, ...chargeRows])
 
-    recordsSheet['!cols'] = [
-      { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 14 }, { wch: 22 }, { wch: 32 }, { wch: 28 }, { wch: 12 }, { wch: 14 },
-    ]
+    recordsSheet['!cols'] = REPAIR_EXPORT_COLUMNS
+    configureRepairExportLayout(XLSX, recordsSheet, repairRows)
     chargesSheet['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 14 }]
+    configureCenteredSheetLayout(XLSX, chargesSheet, CHARGE_HEADERS.length, chargeRows.length)
     XLSX.utils.book_append_sheet(workbook, recordsSheet, '維修紀錄')
     XLSX.utils.book_append_sheet(workbook, chargesSheet, '收費明細')
     const filename = `repair-records-${new Date().toISOString().slice(0, 10)}.xlsx`
@@ -79,8 +80,8 @@ type SaveFilePicker = (options: {
 }) => Promise<BrowserFileHandle>
 
 async function saveWorkbookWithPicker(
-  XLSX: typeof import('xlsx'),
-  workbook: import('xlsx').WorkBook,
+  XLSX: typeof import('xlsx-js-style'),
+  workbook: import('xlsx-js-style').WorkBook,
   filename: string,
 ): Promise<'saved' | 'cancelled' | null> {
   const saveFilePicker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker
@@ -120,7 +121,7 @@ const EXPORT_HEADERS = [
     '客戶姓名',
     '製造號碼',
     '出貨日期',
-    '購買屬性',
+    '機器屬性',
     '維修日期',
     '故障分類',
     '保固期判斷',
@@ -128,10 +129,25 @@ const EXPORT_HEADERS = [
     '維修內容',
     '備註',
     '送回日期',
-    '總金額',
+    '維修總金額',
 ]
 
 const CHARGE_HEADERS = ['製造號碼', '收到日期', '收費項目', '金額']
+
+export const REPAIR_EXPORT_COLUMNS = [
+  { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+  { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 47 }, { wch: 27 }, { wch: 12 }, { wch: 14 },
+]
+
+const THIN_CELL_BORDER = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+}
+
+const REPAIR_CONTENT_COLUMN = 10
+const NOTE_COLUMN = 11
 
 export function buildRepairExportRows(records: RepairRecord[]): Array<Array<string | number>> {
   return records.map((record) => [
@@ -155,9 +171,87 @@ export function buildRepairExportRows(records: RepairRecord[]): Array<Array<stri
 export function buildChargeExportRows(records: RepairRecord[]): Array<Array<string | number>> {
   return records.flatMap((record) =>
     record.charges
-      .filter((charge) => charge.kind !== 'inspection' || charge.amount !== 0)
+      .filter((charge) => charge.amount !== 0)
       .map((charge) => [record.serialNumber, record.receivedDate, charge.label, charge.amount]),
   )
+}
+
+function configureRepairExportLayout(
+  XLSX: typeof import('xlsx-js-style'),
+  sheet: import('xlsx-js-style').WorkSheet,
+  rows: Array<Array<string | number>>,
+): void {
+  for (let column = 0; column < EXPORT_HEADERS.length; column += 1) {
+    const headerCell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })]
+
+    if (headerCell) {
+      headerCell.s = {
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: THIN_CELL_BORDER,
+      }
+    }
+  }
+
+  sheet['!rows'] = [{ hpt: 20 }]
+
+  rows.forEach((row, index) => {
+    const repairContent = normalizeExcelText(String(row[REPAIR_CONTENT_COLUMN] ?? ''))
+    const note = normalizeExcelText(String(row[NOTE_COLUMN] ?? ''))
+
+    for (let column = 0; column < EXPORT_HEADERS.length; column += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: index + 1, c: column })]
+
+      if (!cell) {
+        continue
+      }
+
+      const isLongTextColumn = column === REPAIR_CONTENT_COLUMN || column === NOTE_COLUMN
+
+      if (column === REPAIR_CONTENT_COLUMN) {
+        cell.v = repairContent
+        cell.w = repairContent
+      }
+
+      if (column === NOTE_COLUMN) {
+        cell.v = note
+        cell.w = note
+      }
+
+      cell.s = {
+        alignment: {
+          horizontal: isLongTextColumn ? 'left' : 'center',
+          vertical: 'center',
+          wrapText: isLongTextColumn,
+        },
+        border: THIN_CELL_BORDER,
+      }
+    }
+
+  })
+}
+
+function configureCenteredSheetLayout(
+  XLSX: typeof import('xlsx-js-style'),
+  sheet: import('xlsx-js-style').WorkSheet,
+  columnCount: number,
+  rowCount: number,
+): void {
+  for (let row = 0; row <= rowCount; row += 1) {
+    for (let column = 0; column < columnCount; column += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })]
+
+      if (cell) {
+        cell.s = {
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: THIN_CELL_BORDER,
+        }
+      }
+    }
+  }
+}
+
+export function normalizeExcelText(value: string): string {
+  return value.replace(/\r\n?|\n/g, ' ').trim()
 }
 
 export async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
@@ -217,7 +311,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
       <tr><th>客戶姓名</th><td>${escapeHtml(record.customerName)}</td></tr>
       <tr><th>製造號碼</th><td>${escapeHtml(record.serialNumber)}</td></tr>
       <tr><th>出貨日期</th><td>${escapeHtml(record.shippedDate)}</td></tr>
-      <tr><th>購買屬性</th><td>${escapeHtml(getPurchaseTypeLabel(record.purchaseType))}</td></tr>
+      <tr><th>機器屬性</th><td>${escapeHtml(getPurchaseTypeLabel(record.purchaseType))}</td></tr>
       <tr><th>維修日期</th><td>${escapeHtml(record.repairDate)}</td></tr>
       <tr><th>故障分類</th><td>${escapeHtml(record.faultCategory)}</td></tr>
       <tr><th>保固期判斷</th><td>${escapeHtml(getWarrantyStatus(record.receivedDate, record.shippedDate))}</td></tr>
@@ -229,7 +323,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
   </section>
   <section>
     <h2>收費內容</h2>
-    <table>${charges}<tr><th>總金額</th><td>${total.toLocaleString()} 元</td></tr></table>
+    <table>${charges}<tr><th>維修總金額</th><td>${total.toLocaleString()} 元</td></tr></table>
   </section>
 ${attachmentsSection}
 </body>

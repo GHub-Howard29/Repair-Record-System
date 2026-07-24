@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildChargeExportRows, buildRepairExportRows, buildRepairPrintHtml } from './exportService'
+import {
+  buildChargeExportRows,
+  buildRepairExportRows,
+  buildRepairPrintHtml,
+  normalizeExcelText,
+  REPAIR_EXPORT_COLUMNS,
+} from './exportService'
 import type { RepairRecord } from '../types/repair'
 
 const record: RepairRecord = {
@@ -27,21 +33,39 @@ const record: RepairRecord = {
 }
 
 describe('Excel 匯出資料', () => {
-  it('保留資料欄位並正確計算總金額', () => {
+  it('保留資料欄位並正確計算維修總金額', () => {
     const [row] = buildRepairExportRows([record])
 
     expect(row).toEqual([
-      '2026-07-17', '台北', '王小明', 'NIS-12AB34CD56EF', '', '客人', '', '自然損壞', '尚待確認', '水泵',
+      '2026-07-17', '台北', '王小明', 'NIS-12AB34CD56EF', '', '門市客人', '', '自然損壞', '尚待確認', '水泵',
       '更換水泵', '', '2026-07-20', 180,
     ])
+  })
+
+  it('維修內容與備註使用指定的固定欄寬', () => {
+    expect(REPAIR_EXPORT_COLUMNS[10].wch).toBe(47)
+    expect(REPAIR_EXPORT_COLUMNS[11].wch).toBe(27)
+  })
+
+  it('忽略表單內維修內容與備註原有的換行，交由 Excel 自動換行', () => {
+    const normalizedText = normalizeExcelText('第一行備註\r\n第二行備註\r第三行備註')
+
+    expect(normalizedText).toBe('第一行備註 第二行備註 第三行備註')
   })
 })
 
 describe('收費項目匯出', () => {
-  it('略過金額為零的檢修費', () => {
-    const rows = buildChargeExportRows([{ ...record, charges: [{ id: 'inspection', label: '檢修測試費', amount: 0, kind: 'inspection' }] }])
+  it('略過所有金額為零的收費紀錄', () => {
+    const rows = buildChargeExportRows([{
+      ...record,
+      charges: [
+        { id: 'inspection', label: '檢修測試費', amount: 0, kind: 'inspection' },
+        { id: 'shipping', label: '運費', amount: 0, kind: 'shipping' },
+        { id: 'part-water-pump', label: '水泵', amount: 300, kind: 'part' },
+      ],
+    }])
 
-    expect(rows).toEqual([])
+    expect(rows).toEqual([['NIS-12AB34CD56EF', '2026-07-17', '水泵', 300]])
   })
 })
 
