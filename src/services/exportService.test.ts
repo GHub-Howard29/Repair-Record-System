@@ -80,6 +80,14 @@ describe('列印維修紀錄', () => {
     ])
   })
 
+  it('手機 PDF 不會在附件照片中間分頁', () => {
+    expect(getPdfPageSlices(2_200, 1_000, [700], [{ start: 1_400, end: 1_750 }])).toEqual([
+      { offset: 0, height: 700 },
+      { offset: 700, height: 700 },
+      { offset: 1_400, height: 800 },
+    ])
+  })
+
   it('PDF 檔名會包含送回日期與客戶名稱', () => {
     expect(getPdfExportTitle(record)).toBe('維修報告_20260720_王小明')
   })

@@ -84,7 +84,16 @@ async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
   const sourceTop = source.getBoundingClientRect().top
   const attachmentPageBreaks = Array.from(source.querySelectorAll<HTMLElement>('.attachments-section'))
     .map((section) => Math.round(section.getBoundingClientRect().top - sourceTop))
-  const pageSlices = getPdfPageSlices(sourceHeight, pageHeightPx, attachmentPageBreaks)
+  const attachmentBlocks = Array.from(source.querySelectorAll<HTMLElement>('.attachments figure'))
+    .map((figure) => {
+      const bounds = figure.getBoundingClientRect()
+
+      return {
+        start: Math.round(bounds.top - sourceTop),
+        end: Math.round(bounds.bottom - sourceTop),
+      }
+    })
+  const pageSlices = getPdfPageSlices(sourceHeight, pageHeightPx, attachmentPageBreaks, attachmentBlocks)
 
   for (const { offset, height: renderHeight } of pageSlices) {
     const canvas = await html2canvas(source, {
@@ -119,6 +128,7 @@ export function getPdfPageSlices(
   sourceHeight: number,
   pageHeight: number,
   forcedPageBreaks: number[] = [],
+  protectedBlocks: Array<{ start: number; end: number }> = [],
 ): Array<{ offset: number; height: number }> {
   const validBreaks = [...new Set(forcedPageBreaks)]
     .filter((offset) => offset > 0 && offset < sourceHeight)
@@ -129,7 +139,13 @@ export function getPdfPageSlices(
   while (offset < sourceHeight) {
     const naturalEnd = Math.min(offset + pageHeight, sourceHeight)
     const forcedEnd = validBreaks.find((breakOffset) => breakOffset > offset && breakOffset < naturalEnd)
-    const end = forcedEnd ?? naturalEnd
+    const protectedEnd = protectedBlocks.find((block) =>
+      block.start > offset &&
+      block.start < naturalEnd &&
+      block.end > naturalEnd &&
+      block.end - block.start <= pageHeight,
+    )?.start
+    const end = Math.min(forcedEnd ?? naturalEnd, protectedEnd ?? naturalEnd)
 
     slices.push({ offset, height: end - offset })
     offset = end
