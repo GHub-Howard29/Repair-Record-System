@@ -522,9 +522,17 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   element.innerHTML = printDocument.body.innerHTML
   element.style.cssText = 'position:fixed; left:0; top:0; z-index:2147483647; width:794px; min-height:1123px; box-sizing:border-box; background:#ffffff; color:#172033; overflow:auto;'
   // 電腦列印保留原有的標題微調；手機逐頁擷取時，負的 translateY 會讓標題跨出
-  // 第一頁畫布而被裁切，因此只在這個暫存匯出容器取消位移。
+  // 第一頁畫布而被裁切，因此只在這個暫存匯出容器取消位移。行動版 Canvas
+  // 也不能沿用列印縮圖的 max-height/object-fit 組合，否則直式照片會被強制
+  // 壓進固定高度而變形；改以圖片本身比例自動計算高度。
   style.textContent = `${printStyles.replaceAll('body', '#pdf-export-source')}
     #pdf-export-source .company-name { transform: none; }
+    #pdf-export-source figure img {
+      height: auto;
+      max-height: none;
+      aspect-ratio: auto;
+      object-fit: initial;
+    }
   `
   element.prepend(style)
   document.body.append(element)
