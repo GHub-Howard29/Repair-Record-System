@@ -3,6 +3,7 @@ import {
   buildChargeExportRows,
   buildRepairExportRows,
   buildRepairPrintHtml,
+  getPdfExportTitle,
   normalizeExcelText,
   REPAIR_EXPORT_COLUMNS,
 } from './exportService'
@@ -70,6 +71,10 @@ describe('收費項目匯出', () => {
 })
 
 describe('列印維修紀錄', () => {
+  it('PDF 檔名會包含送回日期與客戶名稱', () => {
+    expect(getPdfExportTitle(record)).toBe('維修報告_20260720_王小明')
+  })
+
   it('沒有附件時不產生附件清單頁面', async () => {
     const html = await buildRepairPrintHtml(record)
 

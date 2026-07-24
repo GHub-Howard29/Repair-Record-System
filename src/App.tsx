@@ -636,7 +636,7 @@ function App() {
   async function exportRecordPdf(record: RepairRecord) {
     try {
       await browserExportService.exportRecordPdf(record)
-      setExportMessage('已開啟列印視窗；請在「更多設定」取消勾選「頁首及頁尾」，再另存 PDF。')
+      setExportMessage('已開啟列印視窗；另存 PDF 時檔名會自動帶入客戶名稱，請取消勾選「頁首及頁尾」。')
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : 'PDF 匯出失敗。')
     }

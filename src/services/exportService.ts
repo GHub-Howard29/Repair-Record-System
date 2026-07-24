@@ -19,9 +19,10 @@ export const pendingExportService: ExportService = {
 export const browserExportService: ExportService = {
   async exportRecordPdf(record) {
     const frame = document.createElement('iframe')
+    const isMobilePrint = window.matchMedia('(max-width: 720px)').matches
 
     frame.setAttribute('aria-hidden', 'true')
-    frame.style.cssText = 'position:fixed; width:0; height:0; border:0; visibility:hidden;'
+    frame.style.cssText = 'position:fixed; left:-10000px; top:-10000px; width:794px; height:1123px; border:0;'
     document.body.append(frame)
 
     const printDocument = frame.contentDocument
@@ -32,14 +33,19 @@ export const browserExportService: ExportService = {
       throw new Error('無法建立列印文件。')
     }
 
-    const cleanup = () => window.setTimeout(() => frame.remove(), 0)
-    printWindow.addEventListener('afterprint', cleanup, { once: true })
     printDocument.write(await buildRepairPrintHtml(record))
     printDocument.close()
-    window.setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-    }, 0)
+    await waitForPrintDocumentReady(printDocument)
+
+    if (isMobilePrint) {
+      // 行動瀏覽器的另存 PDF 在 print() 返回後仍可能讀取列印來源。
+      window.setTimeout(() => frame.remove(), 120_000)
+    } else {
+      printWindow.addEventListener('afterprint', () => window.setTimeout(() => frame.remove(), 0), { once: true })
+    }
+
+    printWindow.focus()
+    printWindow.print()
   },
   async exportRecordsExcel(records) {
     const XLSX = await import('xlsx-js-style')
@@ -254,6 +260,15 @@ export function normalizeExcelText(value: string): string {
   return value.replace(/\r\n?|\n/g, ' ').trim()
 }
 
+export function getPdfExportTitle(record: Pick<RepairRecord, 'returnedDate' | 'customerName'>): string {
+  const returnedDate = /^\d{4}-\d{2}-\d{2}$/.test(record.returnedDate)
+    ? record.returnedDate.replaceAll('-', '')
+    : '未填送回日期'
+  const customerName = sanitizeFilenamePart(record.customerName) || '未填客戶'
+
+  return `維修報告_${returnedDate}_${customerName}`
+}
+
 export async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
   const total = record.charges.reduce((sum, charge) => sum + charge.amount, 0)
   const charges = record.charges
@@ -283,7 +298,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <title>維修紀錄 ${escapeHtml(record.serialNumber)}</title>
+  <title>${escapeHtml(getPdfExportTitle(record))}</title>
   <style>
     body { font-family: system-ui, "Noto Sans TC", sans-serif; margin: 32px; color: #172033; }
     h1 { margin: 0 0 20px; }
@@ -346,6 +361,38 @@ async function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachmen
   } catch {
     return undefined
   }
+}
+
+async function waitForPrintDocumentReady(printDocument: Document): Promise<void> {
+  const images = Array.from(printDocument.images)
+
+  await Promise.all(images.map((image) => waitForImageOrTimeout(image, 5_000)))
+  await Promise.race([
+    printDocument.fonts.ready,
+    new Promise<void>((resolve) => window.setTimeout(resolve, 1_500)),
+  ])
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 100))
+}
+
+function waitForImageOrTimeout(image: HTMLImageElement, timeoutMs: number): Promise<void> {
+  if (image.complete) {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(resolve, timeoutMs)
+    const finish = () => {
+      window.clearTimeout(timeoutId)
+      resolve()
+    }
+
+    image.addEventListener('load', finish, { once: true })
+    image.addEventListener('error', finish, { once: true })
+  })
+}
+
+function sanitizeFilenamePart(value: string): string {
+  return value.trim().replace(/[\\/:*?"<>|]/g, '_')
 }
 
 function escapeHtml(value: string): string {
