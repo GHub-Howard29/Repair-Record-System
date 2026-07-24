@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# Codex 對話附件暫存，不屬於專案原始碼或部署內容。
+.codex-remote-attachments/
