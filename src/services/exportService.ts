@@ -479,7 +479,11 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   element.id = 'pdf-export-source'
   element.innerHTML = printDocument.body.innerHTML
   element.style.cssText = 'position:fixed; left:0; top:0; z-index:2147483647; width:794px; min-height:1123px; box-sizing:border-box; background:#ffffff; color:#172033; overflow:auto;'
-  style.textContent = printStyles.replaceAll('body', '#pdf-export-source')
+  // 電腦列印保留原有的標題微調；手機逐頁擷取時，負的 translateY 會讓標題跨出
+  // 第一頁畫布而被裁切，因此只在這個暫存匯出容器取消位移。
+  style.textContent = `${printStyles.replaceAll('body', '#pdf-export-source')}
+    #pdf-export-source .company-name { transform: none; }
+  `
   element.prepend(style)
   document.body.append(element)
 
