@@ -28,17 +28,7 @@ export const browserExportService: ExportService = {
 
     try {
       await waitForPdfSourceReady(source.element)
-      const { default: html2pdf } = await import('html2pdf.js')
-      const pdfBlob = await html2pdf()
-        .set({
-          margin: [10, 10, 10, 10],
-          filename,
-          image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        })
-        .from(source.element)
-        .outputPdf('blob') as Blob
+      const pdfBlob = await renderMobilePdf(source.element)
 
       await sharePdfWithMobileApps(pdfBlob, filename)
     } finally {
@@ -69,6 +59,75 @@ export const browserExportService: ExportService = {
     XLSX.writeFile(workbook, filename, { compression: true })
     return 'downloaded'
   },
+}
+
+const PDF_PAGE_WIDTH_MM = 210
+const PDF_PAGE_HEIGHT_MM = 297
+const PDF_PAGE_MARGIN_MM = 10
+const PDF_RENDER_WIDTH_PX = 794
+
+/**
+ * 行動瀏覽器對單一超長 canvas 的尺寸與記憶體限制很低。將報告切成 A4 高度的
+ * 小 canvas 再逐頁寫入 PDF，可避免 html2pdf 在手機上產生看似有效的空白檔案。
+ */
+async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ])
+  const contentWidthMm = PDF_PAGE_WIDTH_MM - PDF_PAGE_MARGIN_MM * 2
+  const contentHeightMm = PDF_PAGE_HEIGHT_MM - PDF_PAGE_MARGIN_MM * 2
+  const sourceWidth = Math.max(Math.ceil(source.getBoundingClientRect().width), PDF_RENDER_WIDTH_PX)
+  const pageHeightPx = Math.floor((sourceWidth * contentHeightMm) / contentWidthMm)
+  const sourceHeight = Math.ceil(source.scrollHeight)
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true })
+
+  for (let offset = 0; offset < sourceHeight; offset += pageHeightPx) {
+    const renderHeight = Math.min(pageHeightPx, sourceHeight - offset)
+    const canvas = await html2canvas(source, {
+      backgroundColor: '#ffffff',
+      height: renderHeight,
+      logging: false,
+      scale: 1,
+      useCORS: true,
+      width: sourceWidth,
+      windowHeight: renderHeight,
+      windowWidth: sourceWidth,
+      x: 0,
+      y: offset,
+    })
+
+    if (!canvasContainsReportContent(canvas)) {
+      throw new Error('手機瀏覽器未能繪製 PDF 內容，請改用 Chrome 或 Safari 後重試。')
+    }
+
+    if (offset > 0) {
+      pdf.addPage()
+    }
+
+    const imageHeightMm = (renderHeight * contentWidthMm) / sourceWidth
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', PDF_PAGE_MARGIN_MM, PDF_PAGE_MARGIN_MM, contentWidthMm, imageHeightMm)
+  }
+
+  return pdf.output('blob')
+}
+
+function canvasContainsReportContent(canvas: HTMLCanvasElement): boolean {
+  const pixels = canvas.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, canvas.width, canvas.height).data
+
+  if (!pixels) {
+    return false
+  }
+
+  for (let index = 0; index < pixels.length; index += 16) {
+    const [red, green, blue, alpha] = [pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]]
+
+    if (alpha > 0 && (red < 240 || green < 240 || blue < 240)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 async function printPdfOnDesktop(record: RepairRecord): Promise<void> {
