@@ -419,7 +419,7 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
 
   element.id = 'pdf-export-source'
   element.innerHTML = printDocument.body.innerHTML
-  element.style.cssText = 'position:fixed; left:-10000px; top:0; width:794px; box-sizing:border-box; background:#ffffff; color:#172033;'
+  element.style.cssText = 'position:fixed; left:0; top:0; z-index:2147483647; width:794px; min-height:1123px; box-sizing:border-box; background:#ffffff; color:#172033; overflow:auto;'
   style.textContent = printStyles.replaceAll('body', '#pdf-export-source')
   element.prepend(style)
   document.body.append(element)
@@ -438,6 +438,7 @@ async function waitForPdfSourceReady(source: HTMLElement): Promise<void> {
     document.fonts.ready,
     new Promise<void>((resolve) => window.setTimeout(resolve, 1_500)),
   ])
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))
 }
 
 function waitForImageOrTimeout(image: HTMLImageElement, timeoutMs: number): Promise<void> {
