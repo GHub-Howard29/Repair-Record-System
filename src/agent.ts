@@ -1,6 +1,6 @@
 export const agentHandbook = {
   project: '維修紀錄系統',
-  currentPhase: 'Phase 7：已進入實機驗收與自動化測試補強；Drive 預覽待複驗',
+  currentPhase: 'Phase 7：手機窄版驗證進行中；下次優先確認 GitHub Actions Secrets 與正式部署設定',
   sourceDocs: [
     'docs/01_需求分析.md',
     'docs/02_系統架構.md',
@@ -29,13 +29,13 @@ export const agentHandbook = {
       '已完成 Desktop OAuth Client 建立。',
       '已完成取得主要 Drive 帳號 drive.file refresh token。',
       '已完成 Firebase Blaze plan 升級與 Firebase Secret Manager 的 5 個後端 Secrets 設定。',
-      '已部署 uploadRepairAttachment Function，並已啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true；已觀察到照片上傳至 Drive，待複驗重新載入與跨裝置預覽。',
+      '已部署 uploadRepairAttachment Function，並已啟用 VITE_ATTACHMENT_UPLOAD_ENABLED=true；照片上傳、重新載入與跨裝置預覽皆已驗證。',
     ],
     homeComputer: [
       '已完成 nvm-windows 安裝。',
       '已完成使用 nvm 切換 Node.js 22。',
     ],
-    validationPolicy: '已驗證事項記錄於交接文件；優先複驗 Drive 照片預覽、完成案件儲存與窄版響應式版面。',
+    validationPolicy: '已驗證事項記錄於交接文件；手機窄版驗證進行中。使用者輸入「繼續」時，優先確認 GitHub Actions Secrets 名稱與正式部署設定；使用者回報該項已完成後，移除此啟動規則。',
   },
   handoffDocs: ['docs/04_工作規範.md', 'docs/05_交接紀錄.md', 'docs/06_外部資源連結設定.md'],
 } as const
