@@ -29,6 +29,10 @@ export function validateRepairForm(values: RepairFormValues): string[] {
     errors.push('請填寫正確的維修日期。')
   }
 
+  if (values.returnedDate && !isValidIsoDate(values.returnedDate)) {
+    errors.push('請填寫正確的送回日期。')
+  }
+
   if (!values.returnLocation.trim()) {
     errors.push('請填寫回送地點。')
   }
@@ -37,6 +41,36 @@ export function validateRepairForm(values: RepairFormValues): string[] {
 
   if (serialNumberError) {
     errors.push(serialNumberError)
+  }
+
+  return errors
+}
+
+export function validateRepairCompletion(values: RepairFormValues): string[] {
+  if (!values.returnedDate) {
+    return []
+  }
+
+  const errors: string[] = []
+
+  if (!values.customerName.trim()) {
+    errors.push('客戶姓名')
+  }
+
+  if (!values.purchaseType) {
+    errors.push('機器屬性')
+  }
+
+  if (!isValidIsoDate(values.repairDate)) {
+    errors.push('維修日期')
+  }
+
+  if (!values.faultCategory.trim()) {
+    errors.push('故障分類')
+  }
+
+  if (!values.repairContent.trim() && !values.note.trim()) {
+    errors.push('維修內容或備註')
   }
 
   return errors

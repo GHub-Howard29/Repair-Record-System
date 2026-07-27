@@ -30,6 +30,7 @@ import {
   parseFaultParts,
   sumCharges,
   toRepairFormValues,
+  validateRepairCompletion,
   validateRepairForm,
 } from './features/repair/repairRules'
 import {
@@ -526,9 +527,14 @@ function App() {
     }
 
     const errors = validateRepairForm(form)
+    const completionErrors = validateRepairCompletion(form)
 
-    if (errors.length > 0) {
-      setMessage(`請完成必填欄位後再儲存：${errors.join(' ')}`)
+    if (errors.length > 0 || completionErrors.length > 0) {
+      setMessage(
+        completionErrors.length > 0
+          ? `送回日期已填寫，請補足結案資料後再儲存：${[...errors, ...completionErrors].join(' ')}`
+          : `請完成必填欄位後再儲存：${errors.join(' ')}`,
+      )
       return
     }
 

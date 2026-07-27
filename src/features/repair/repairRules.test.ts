@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getSerialNumberError, isRepairCompleted, validateRepairForm } from './repairRules'
+import { getSerialNumberError, isRepairCompleted, validateRepairCompletion, validateRepairForm } from './repairRules'
 
 describe('製造號碼驗證', () => {
   it('接受 NIS- 加 12 碼英數字', () => {
@@ -39,5 +39,47 @@ describe('維修完成規則', () => {
     })
 
     expect(errors).toHaveLength(1)
+  })
+
+  it('填寫送回日期時要求完整結案資料', () => {
+    const errors = validateRepairCompletion({
+      receivedDate: '2026-07-17',
+      returnLocation: '台北',
+      serialNumber: 'NIS-12AB34CD56EF',
+      customerName: '',
+      shippedDate: '',
+      purchaseType: '',
+      repairDate: '',
+      faultCategory: '',
+      faultPartsText: '',
+      repairContent: '',
+      note: '',
+      returnedDate: '2026-07-20',
+      inspectionFee: 0,
+      shippingFee: 0,
+      partChargeAmounts: {},
+    })
+
+    expect(errors).toEqual(['客戶姓名', '機器屬性', '維修日期', '故障分類', '維修內容或備註'])
+  })
+
+  it('未填送回日期時不套用結案資料限制', () => {
+    expect(validateRepairCompletion({
+      receivedDate: '2026-07-17',
+      returnLocation: '台北',
+      serialNumber: 'NIS-12AB34CD56EF',
+      customerName: '',
+      shippedDate: '',
+      purchaseType: '',
+      repairDate: '',
+      faultCategory: '',
+      faultPartsText: '',
+      repairContent: '',
+      note: '',
+      returnedDate: '',
+      inspectionFee: 0,
+      shippingFee: 0,
+      partChargeAmounts: {},
+    })).toEqual([])
   })
 })

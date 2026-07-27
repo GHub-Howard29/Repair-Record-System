@@ -1,4 +1,5 @@
 import type { RepairRecord } from '../types/repair'
+import niceGreenLogoUrl from '../assets/nice-green-logo.jpg'
 import { getPurchaseTypeLabel } from '../features/repair/purchaseType'
 import { getWarrantyStatus } from '../features/warranty/warranty'
 
@@ -446,7 +447,9 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
   <style>
     body { font-family: system-ui, "Noto Sans TC", sans-serif; margin: 32px; color: #172033; }
     .report-header { margin: 0 0 20px; }
-    .company-name { margin: 0 0 8px; text-align: center; transform: translateY(-1em); font-family: "DFKai-SB", "BiauKai", "標楷體", serif; font-size: 2em; font-weight: 700; }
+    .company-brand { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 8px; transform: translateY(-1em); }
+    .company-logo { display: block; width: 96px; height: auto; mix-blend-mode: multiply; }
+    .company-name { margin: 0; text-align: center; font-family: "DFKai-SB", "BiauKai", "標楷體", serif; font-size: 2em; font-weight: 700; }
     h1 { margin: 0; }
     section { margin-top: 20px; }
     table { width: 100%; border-collapse: collapse; }
@@ -465,7 +468,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
 </head>
 <body>
   <header class="report-header">
-    <p class="company-name">庭茂農業生技股份有限公司</p>
+    <div class="company-brand"><img class="company-logo" src="${niceGreenLogoUrl}" alt="NICE GREEN" /><p class="company-name">庭茂農業生技股份有限公司</p></div>
     <h1>維修紀錄</h1>
   </header>
   <section>
@@ -526,7 +529,7 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   // Canvas 匯出時使用固定框，讓最多五張照片可排進一張 A4 直式頁面，再在框內
   // 等比例縮放、不裁切；電腦版瀏覽器列印保留原有圖片樣式。
   style.textContent = `${printStyles.replaceAll('body', '#pdf-export-source')}
-    #pdf-export-source .company-name { transform: none; }
+    #pdf-export-source .company-brand { transform: none; }
     #pdf-export-source .attachments figure { display: grid; grid-template-rows: 260px auto; }
     #pdf-export-source .attachment-image-frame {
       display: flex;
