@@ -437,7 +437,7 @@ body,
   opacity: 0.62;
 }
 
-.repair-form .date-picker-control {
+.date-field .date-picker-control {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -449,7 +449,7 @@ body,
   pointer-events: none;
 }
 
-.repair-form .date-picker-control:disabled {
+.date-field .date-picker-control:disabled {
   opacity: 0;
 }
 
