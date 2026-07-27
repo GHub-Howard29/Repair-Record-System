@@ -1157,11 +1157,10 @@ function App() {
             </label>
             <label>
               送回日期
-              <input
-                type="date"
+              <DateField
                 value={form.returnedDate}
                 disabled={completed}
-                onChange={(event) => updateForm('returnedDate', event.target.value)}
+                onChange={(value) => updateForm('returnedDate', value)}
               />
             </label>
             <p className="completion-warning wide-field">
