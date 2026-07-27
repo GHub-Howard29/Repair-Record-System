@@ -183,6 +183,9 @@ function App() {
   const [form, setForm] = useState<RepairFormValues>(() => toRepairFormValues())
   const [draftAttachments, setDraftAttachments] = useState<RepairAttachment[]>([])
   const [pendingAttachmentDeletionIds, setPendingAttachmentDeletionIds] = useState<string[]>([])
+  const [pendingAttachmentReplacements, setPendingAttachmentReplacements] = useState<
+    Array<{ attachmentId: string; nextAttachment: RepairAttachment; replacedAttachment: RepairAttachment }>
+  >([])
   const [attachmentDescription, setAttachmentDescription] = useState<(typeof ATTACHMENT_DESCRIPTIONS)[number]>('維修前')
   const [customAttachmentDescription, setCustomAttachmentDescription] = useState('')
   const [searchText, setSearchText] = useState('')
@@ -210,7 +213,11 @@ function App() {
   const serialNumberError = getSerialNumberError(form.serialNumber)
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
   const attachmentList = selectedRecord
-    ? selectedRecord.attachments.filter((attachment) => !pendingAttachmentDeletionIds.includes(attachment.id))
+    ? selectedRecord.attachments
+      .filter((attachment) => !pendingAttachmentDeletionIds.includes(attachment.id))
+      .map((attachment) =>
+        pendingAttachmentReplacements.find((replacement) => replacement.attachmentId === attachment.id)?.nextAttachment ?? attachment,
+      )
     : draftAttachments
   const availableFaultParts = useMemo(
     () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])),
@@ -392,6 +399,7 @@ function App() {
     setMessage('請先完成收到日期、回送地點、製造號碼等欄位後，即時儲存，如未儲存時執行其他動作，將移失尚未儲存資料。')
     setDraftAttachments([])
     setPendingAttachmentDeletionIds([])
+    setPendingAttachmentReplacements([])
     setAttachmentMessage('可先加入照片，儲存維修單後會自動上傳。')
     setExportSelectionMode(null)
     setPreviewAttachment(null)
@@ -403,6 +411,7 @@ function App() {
     setForm(toRepairFormValues(record))
     setDraftAttachments([])
     setPendingAttachmentDeletionIds([])
+    setPendingAttachmentReplacements([])
     setMessage(isRepairCompleted(record) ? '此案件已完成，依規則只能檢視。' : '正在編輯維修中案件。')
     setAttachmentMessage(
       isRepairCompleted(record) ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。',
@@ -460,24 +469,56 @@ function App() {
     }
 
     const builtRecord = buildRepairRecord(form, selectedRecord)
+    const deletedAttachmentIds = new Set(pendingAttachmentDeletionIds)
+    const replacementsById = new Map(
+      pendingAttachmentReplacements.map((replacement) => [replacement.attachmentId, replacement]),
+    )
     const attachmentsToDelete = selectedRecord
-      ? selectedRecord.attachments.filter((attachment) => pendingAttachmentDeletionIds.includes(attachment.id))
+      ? Array.from(
+        new Map(
+          [
+            ...selectedRecord.attachments.filter((attachment) => deletedAttachmentIds.has(attachment.id)),
+            ...pendingAttachmentReplacements
+              .filter((replacement) => !deletedAttachmentIds.has(replacement.attachmentId))
+              .map((replacement) => replacement.replacedAttachment),
+          ]
+            .filter((attachment) => Boolean(attachment.driveFileId))
+            .map((attachment) => [attachment.driveFileId as string, attachment]),
+        ).values(),
+      )
       : []
     const nextRecord = {
       ...builtRecord,
       attachments: selectedRecord
-        ? relabelAttachments(selectedRecord.attachments.filter((attachment) => !pendingAttachmentDeletionIds.includes(attachment.id)))
+        ? relabelAttachments(
+          selectedRecord.attachments
+            .filter((attachment) => !deletedAttachmentIds.has(attachment.id))
+            .map((attachment) => replacementsById.get(attachment.id)?.nextAttachment ?? attachment),
+        )
         : draftAttachments,
     }
     try {
-      await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id), attachmentsToDelete)
+      await persistRecord(
+        nextRecord,
+        [
+          ...draftAttachments.map((attachment) => attachment.id),
+          ...pendingAttachmentReplacements
+            .filter((replacement) => !deletedAttachmentIds.has(replacement.attachmentId))
+            .map((replacement) => replacement.nextAttachment.id),
+        ],
+        attachmentsToDelete,
+        pendingAttachmentDeletionIds,
+      )
       setDraftAttachments([])
       setPendingAttachmentDeletionIds([])
+      setPendingAttachmentReplacements([])
       setAttachmentMessage(
         nextRecord.returnedDate
           ? '此案件已完成，附件已鎖定。'
-          : attachmentsToDelete.length > 0
-            ? '已儲存；雲端照片已列入同步刪除。'
+          : attachmentsToDelete.length > 0 && pendingAttachmentReplacements.length > 0
+            ? '已儲存；新照片已列入同步上傳，舊有雲端照片已列入同步刪除。'
+            : attachmentsToDelete.length > 0
+              ? '已儲存；雲端照片已列入同步刪除。'
             : '可新增、更換或刪除最多五張圖片附件。',
       )
 
@@ -562,17 +603,26 @@ function App() {
         return
       }
 
-      const nextRecord = {
-        ...selectedRecord,
-        attachments: selectedRecord.attachments.map((current) =>
-          current.id === attachmentId ? { ...attachment, id: attachmentId } : current,
-        ),
-        updatedAt: new Date().toISOString(),
+      const replacedAttachment = selectedRecord.attachments.find((current) => current.id === attachmentId)
+
+      if (!replacedAttachment) {
+        return
       }
 
-      await persistRecord(nextRecord, [attachmentId])
+      setPendingAttachmentReplacements((replacements) => [
+        ...replacements.filter((replacement) => replacement.attachmentId !== attachmentId),
+        {
+          attachmentId,
+          nextAttachment: { ...attachment, id: attachmentId },
+          replacedAttachment,
+        },
+      ])
       setPreviewAttachment(null)
-      setAttachmentMessage(attachment.compressed ? '已自動壓縮照片，以符合系統限制。' : '附件已更換並列入待同步。')
+      setAttachmentMessage(
+        replacedAttachment.driveFileId
+          ? '照片已更換；請按「儲存」後才會同步上傳新照片並刪除舊有雲端照片。'
+          : '照片已更換；請按「儲存」後才會同步上傳。',
+      )
     } catch (error) {
       setAttachmentMessage(error instanceof Error ? error.message : '附件處理失敗。')
     }
@@ -598,6 +648,9 @@ function App() {
     }
 
     setPendingAttachmentDeletionIds((ids) => ids.includes(attachmentId) ? ids : [...ids, attachmentId])
+    setPendingAttachmentReplacements((replacements) =>
+      replacements.filter((replacement) => replacement.attachmentId !== attachmentId),
+    )
     setPreviewAttachment(null)
     setAttachmentMessage(
       attachment.driveFileId
@@ -610,6 +663,7 @@ function App() {
     record: RepairRecord,
     attachmentIds: string[] = [],
     attachmentsToDelete: RepairAttachment[] = [],
+    attachmentIdsToDiscard: string[] = [],
   ) {
     const nextRecords = await localRepairRecordService.save(record)
     const nextTextTasks = enqueueRepairTextSync(syncTasks, record)
@@ -617,13 +671,17 @@ function App() {
       (tasks, attachmentId) => enqueueAttachmentSync(tasks, record.id, attachmentId),
       nextTextTasks,
     )
+    const tasksWithoutDiscardedAttachments = attachmentIdsToDiscard.reduce(
+      (tasks, attachmentId) => discardAttachmentSync(tasks, record.id, attachmentId),
+      nextAttachmentTasks,
+    )
     const nextTasks = attachmentsToDelete.reduce(
       (tasks, attachment) => enqueueAttachmentDeletionSync(
-        discardAttachmentSync(tasks, record.id, attachment.id),
+        tasks,
         record.id,
         attachment,
       ),
-      nextAttachmentTasks,
+      tasksWithoutDiscardedAttachments,
     )
 
     setRecords(nextRecords)
@@ -1211,7 +1269,7 @@ function App() {
                       <span>{attachment.label || getAttachmentLabel(index)}</span>
                     </button>
                     <small>
-                      {(attachment.size / 1024).toFixed(0)} KB · {attachment.syncStatus}
+                      {(attachment.size / 1024).toFixed(0)} KB · {getSyncStatusLabel(attachment.syncStatus)}
                     </small>
                     <div className="attachment-actions">
                       <label className={completed ? 'text-action disabled' : 'text-action'}>
