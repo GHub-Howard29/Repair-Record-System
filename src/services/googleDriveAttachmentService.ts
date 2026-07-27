@@ -21,6 +21,19 @@ export const googleDriveAttachmentService: AttachmentStorageService = {
       syncStatus: 'synced',
     }
   },
+  async remove(recordId, attachment) {
+    if (!attachment.driveFileId) {
+      return
+    }
+
+    await waitForFirebaseAuth()
+    const remove = httpsCallable<
+      { recordId: string; attachmentId: string; driveFileId: string },
+      { driveFileId: string }
+    >(getFirebaseFunctions(), 'deleteRepairAttachment')
+
+    await remove({ recordId, attachmentId: attachment.id, driveFileId: attachment.driveFileId })
+  },
 }
 
 export async function getGoogleDriveAttachmentPreviewDataUrl(

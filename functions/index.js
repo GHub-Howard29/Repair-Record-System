@@ -126,6 +126,52 @@ export const getRepairAttachmentPreview = onCall(
   },
 )
 
+export const deleteRepairAttachment = onCall(
+  {
+    region: 'asia-east1',
+    timeoutSeconds: 60,
+    memory: '512MiB',
+    secrets: [driveFolderId, driveOauthClientId, driveOauthClientSecret, driveOauthRefreshToken, allowedEmails],
+  },
+  async (request) => {
+    const email = request.auth?.token.email
+
+    if (!email) {
+      throw new HttpsError('unauthenticated', '請先登入後再刪除附件。')
+    }
+
+    const permittedEmails = parseAllowedEmails(allowedEmails.value())
+
+    if (!permittedEmails.includes(email.toLowerCase())) {
+      throw new HttpsError('permission-denied', '此帳號沒有刪除附件的權限。')
+    }
+
+    const { recordId, attachmentId, driveFileId } = request.data ?? {}
+
+    if (typeof recordId !== 'string' || !recordId.trim() || typeof attachmentId !== 'string' || !attachmentId.trim()) {
+      throw new HttpsError('invalid-argument', '缺少維修紀錄或附件識別碼。')
+    }
+
+    if (typeof driveFileId !== 'string' || !driveFileId.trim()) {
+      throw new HttpsError('invalid-argument', '缺少 Google Drive 附件識別碼。')
+    }
+
+    const { google } = await import('googleapis')
+    const auth = new google.auth.OAuth2(driveOauthClientId.value(), driveOauthClientSecret.value())
+    auth.setCredentials({ refresh_token: driveOauthRefreshToken.value() })
+    const drive = google.drive({ version: 'v3', auth })
+    const file = await drive.files.get({ fileId: driveFileId, fields: 'parents,mimeType' })
+
+    if (!file.data.parents?.includes(driveFolderId.value()) || !imageMimeTypes.has(file.data.mimeType ?? '')) {
+      throw new HttpsError('permission-denied', '無法刪除指定附件。')
+    }
+
+    await drive.files.delete({ fileId: driveFileId })
+
+    return { driveFileId }
+  },
+)
+
 function validateUpload(recordId, attachment) {
   if (typeof recordId !== 'string' || !recordId.trim()) {
     throw new HttpsError('invalid-argument', '缺少維修紀錄 ID。')

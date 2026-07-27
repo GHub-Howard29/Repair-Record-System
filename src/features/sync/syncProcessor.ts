@@ -54,6 +54,13 @@ export async function processSyncQueue(
         )
       }
 
+      if (task.kind === 'attachment-delete' && task.attachmentId && task.driveFileId) {
+        await options.attachmentStorageService.remove(task.recordId, {
+          id: task.attachmentId,
+          driveFileId: task.driveFileId,
+        })
+      }
+
       nextTasks = nextTasks.filter((item) => item.id !== task.id)
       completedCount += 1
     } catch (error) {

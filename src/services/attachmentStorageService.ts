@@ -3,6 +3,7 @@ import type { RepairAttachment } from '../types/repair'
 export interface AttachmentStorageService {
   isCloudStorage: boolean
   upload(recordId: string, attachment: RepairAttachment): Promise<RepairAttachment>
+  remove(recordId: string, attachment: Pick<RepairAttachment, 'id' | 'driveFileId'>): Promise<void>
 }
 
 export const localAttachmentStorageService: AttachmentStorageService = {
@@ -13,4 +14,5 @@ export const localAttachmentStorageService: AttachmentStorageService = {
       syncStatus: 'synced',
     }
   },
+  async remove() {},
 }

@@ -12,6 +12,8 @@ import { buildSyncPlan } from './features/sync/syncPlan'
 import { getSyncEnvironment } from './features/sync/syncEnvironment'
 import { processSyncQueue } from './features/sync/syncProcessor'
 import {
+  discardAttachmentSync,
+  enqueueAttachmentDeletionSync,
   enqueueAttachmentSync,
   enqueueRepairTextSync,
   loadSyncQueue,
@@ -180,6 +182,7 @@ function App() {
   const selectedRecord = records.find((record) => record.id === selectedId)
   const [form, setForm] = useState<RepairFormValues>(() => toRepairFormValues())
   const [draftAttachments, setDraftAttachments] = useState<RepairAttachment[]>([])
+  const [pendingAttachmentDeletionIds, setPendingAttachmentDeletionIds] = useState<string[]>([])
   const [attachmentDescription, setAttachmentDescription] = useState<(typeof ATTACHMENT_DESCRIPTIONS)[number]>('維修前')
   const [customAttachmentDescription, setCustomAttachmentDescription] = useState('')
   const [searchText, setSearchText] = useState('')
@@ -206,7 +209,9 @@ function App() {
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
   const serialNumberError = getSerialNumberError(form.serialNumber)
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
-  const attachmentList = selectedRecord?.attachments ?? draftAttachments
+  const attachmentList = selectedRecord
+    ? selectedRecord.attachments.filter((attachment) => !pendingAttachmentDeletionIds.includes(attachment.id))
+    : draftAttachments
   const availableFaultParts = useMemo(
     () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])),
     [formFaultParts],
@@ -386,6 +391,7 @@ function App() {
     setForm(toRepairFormValues())
     setMessage('請先完成收到日期、回送地點、製造號碼等欄位後，即時儲存，如未儲存時執行其他動作，將移失尚未儲存資料。')
     setDraftAttachments([])
+    setPendingAttachmentDeletionIds([])
     setAttachmentMessage('可先加入照片，儲存維修單後會自動上傳。')
     setExportSelectionMode(null)
     setPreviewAttachment(null)
@@ -396,6 +402,7 @@ function App() {
     setSelectedId(record.id)
     setForm(toRepairFormValues(record))
     setDraftAttachments([])
+    setPendingAttachmentDeletionIds([])
     setMessage(isRepairCompleted(record) ? '此案件已完成，依規則只能檢視。' : '正在編輯維修中案件。')
     setAttachmentMessage(
       isRepairCompleted(record) ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。',
@@ -453,14 +460,26 @@ function App() {
     }
 
     const builtRecord = buildRepairRecord(form, selectedRecord)
+    const attachmentsToDelete = selectedRecord
+      ? selectedRecord.attachments.filter((attachment) => pendingAttachmentDeletionIds.includes(attachment.id))
+      : []
     const nextRecord = {
       ...builtRecord,
-      attachments: selectedRecord?.attachments ?? draftAttachments,
+      attachments: selectedRecord
+        ? relabelAttachments(selectedRecord.attachments.filter((attachment) => !pendingAttachmentDeletionIds.includes(attachment.id)))
+        : draftAttachments,
     }
     try {
-      await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id))
+      await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id), attachmentsToDelete)
       setDraftAttachments([])
-      setAttachmentMessage(nextRecord.returnedDate ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。')
+      setPendingAttachmentDeletionIds([])
+      setAttachmentMessage(
+        nextRecord.returnedDate
+          ? '此案件已完成，附件已鎖定。'
+          : attachmentsToDelete.length > 0
+            ? '已儲存；雲端照片已列入同步刪除。'
+            : '可新增、更換或刪除最多五張圖片附件。',
+      )
 
       if (nextRecord.returnedDate) {
         setRecordStatusFilter('completed')
@@ -572,25 +591,39 @@ function App() {
       return
     }
 
-    const nextRecord = {
-      ...selectedRecord,
-      attachments: relabelAttachments(
-        selectedRecord.attachments.filter((attachment) => attachment.id !== attachmentId),
-      ),
-      updatedAt: new Date().toISOString(),
+    const attachment = selectedRecord.attachments.find((item) => item.id === attachmentId)
+
+    if (!attachment) {
+      return
     }
 
-    void persistRecord(nextRecord)
+    setPendingAttachmentDeletionIds((ids) => ids.includes(attachmentId) ? ids : [...ids, attachmentId])
     setPreviewAttachment(null)
-    setAttachmentMessage('附件已刪除。')
+    setAttachmentMessage(
+      attachment.driveFileId
+        ? '照片已從目前表單移除；請按「儲存」後才會同步刪除雲端照片。'
+        : '照片已從目前表單移除；請按「儲存」後更新維修單。',
+    )
   }
 
-  async function persistRecord(record: RepairRecord, attachmentIds: string[] = []) {
+  async function persistRecord(
+    record: RepairRecord,
+    attachmentIds: string[] = [],
+    attachmentsToDelete: RepairAttachment[] = [],
+  ) {
     const nextRecords = await localRepairRecordService.save(record)
     const nextTextTasks = enqueueRepairTextSync(syncTasks, record)
-    const nextTasks = attachmentIds.reduce(
+    const nextAttachmentTasks = attachmentIds.reduce(
       (tasks, attachmentId) => enqueueAttachmentSync(tasks, record.id, attachmentId),
       nextTextTasks,
+    )
+    const nextTasks = attachmentsToDelete.reduce(
+      (tasks, attachment) => enqueueAttachmentDeletionSync(
+        discardAttachmentSync(tasks, record.id, attachment.id),
+        record.id,
+        attachment,
+      ),
+      nextAttachmentTasks,
     )
 
     setRecords(nextRecords)

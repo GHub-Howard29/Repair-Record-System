@@ -1,12 +1,13 @@
-import type { RepairRecord, SyncStatus } from '../../types/repair'
+import type { RepairAttachment, RepairRecord, SyncStatus } from '../../types/repair'
 
-export type SyncTaskKind = 'repair-text' | 'attachment'
+export type SyncTaskKind = 'repair-text' | 'attachment' | 'attachment-delete'
 
 export interface SyncTask {
   id: string
   kind: SyncTaskKind
   recordId: string
   attachmentId?: string
+  driveFileId?: string
   status: SyncStatus
   error?: string
   createdAt: string
@@ -50,6 +51,27 @@ export function enqueueAttachmentSync(tasks: SyncTask[], recordId: string, attac
   })
 }
 
+export function enqueueAttachmentDeletionSync(
+  tasks: SyncTask[],
+  recordId: string,
+  attachment: Pick<RepairAttachment, 'id' | 'driveFileId'>,
+): SyncTask[] {
+  if (!attachment.driveFileId) {
+    return tasks
+  }
+
+  return upsertSyncTask(tasks, {
+    kind: 'attachment-delete',
+    recordId,
+    attachmentId: attachment.id,
+    driveFileId: attachment.driveFileId,
+  })
+}
+
+export function discardAttachmentSync(tasks: SyncTask[], recordId: string, attachmentId: string): SyncTask[] {
+  return saveSyncQueue(tasks.filter((task) => !(task.kind === 'attachment' && task.recordId === recordId && task.attachmentId === attachmentId)))
+}
+
 export function summarizeSyncQueue(tasks: SyncTask[]) {
   return {
     total: tasks.length,
@@ -60,7 +82,7 @@ export function summarizeSyncQueue(tasks: SyncTask[]) {
 
 function upsertSyncTask(
   tasks: SyncTask[],
-  task: Pick<SyncTask, 'kind' | 'recordId' | 'attachmentId'>,
+  task: Pick<SyncTask, 'kind' | 'recordId' | 'attachmentId' | 'driveFileId'>,
 ): SyncTask[] {
   const now = new Date().toISOString()
   const taskId = [task.kind, task.recordId, task.attachmentId].filter(Boolean).join(':')
@@ -69,6 +91,7 @@ function upsertSyncTask(
     kind: task.kind,
     recordId: task.recordId,
     attachmentId: task.attachmentId,
+    driveFileId: task.driveFileId,
     status: 'pending',
     createdAt: tasks.find((item) => item.id === taskId)?.createdAt ?? now,
     updatedAt: now,
