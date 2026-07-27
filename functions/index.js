@@ -160,13 +160,40 @@ export const deleteRepairAttachment = onCall(
     const auth = new google.auth.OAuth2(driveOauthClientId.value(), driveOauthClientSecret.value())
     auth.setCredentials({ refresh_token: driveOauthRefreshToken.value() })
     const drive = google.drive({ version: 'v3', auth })
-    const file = await drive.files.get({ fileId: driveFileId, fields: 'parents,mimeType' })
+    let file
+
+    try {
+      file = await drive.files.get({ fileId: driveFileId, fields: 'parents,mimeType' })
+    } catch (error) {
+      if (getDriveErrorStatus(error) === 404) {
+        // 舊版同步佇列可能保留已被移除的檔案；目標既已達成，視為成功。
+        return { driveFileId }
+      }
+
+      console.error('Google Drive attachment lookup failed', {
+        code: error?.code,
+        message: error?.message,
+        reason: error?.errors?.[0]?.reason,
+      })
+      throw new HttpsError('failed-precondition', '無法讀取欲刪除的 Google 雲端硬碟照片，請確認 Drive 權限。')
+    }
 
     if (!file.data.parents?.includes(driveFolderId.value()) || !imageMimeTypes.has(file.data.mimeType ?? '')) {
       throw new HttpsError('permission-denied', '無法刪除指定附件。')
     }
 
-    await drive.files.delete({ fileId: driveFileId })
+    try {
+      await drive.files.delete({ fileId: driveFileId })
+    } catch (error) {
+      if (getDriveErrorStatus(error) !== 404) {
+        console.error('Google Drive attachment deletion failed', {
+          code: error?.code,
+          message: error?.message,
+          reason: error?.errors?.[0]?.reason,
+        })
+        throw new HttpsError('failed-precondition', '無法刪除 Google 雲端硬碟照片，請確認 Drive 權限。')
+      }
+    }
 
     return { driveFileId }
   },
@@ -208,4 +235,8 @@ function parseAllowedEmails(value) {
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
+}
+
+function getDriveErrorStatus(error) {
+  return error?.code ?? error?.response?.status
 }
