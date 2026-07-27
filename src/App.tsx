@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import './App.css'
 import {
   clearStoredAuthUser,
@@ -40,7 +40,7 @@ import {
 } from './features/attachment/attachmentRules'
 import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS } from './features/repair/repairOptions'
 import { getPurchaseTypeLabel } from './features/repair/purchaseType'
-import { getWarrantyStatus } from './features/warranty/warranty'
+import { getWarrantyStatus, isValidIsoDate } from './features/warranty/warranty'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
 import { googleDriveAttachmentService } from './services/googleDriveAttachmentService'
 import { browserExportService } from './services/exportService'
@@ -114,10 +114,16 @@ function DateField({
   value,
   disabled,
   onChange,
+  fieldName,
+  required = false,
+  errorMessage,
 }: {
   value: string
   disabled: boolean
   onChange: (value: string) => void
+  fieldName: string
+  required?: boolean
+  errorMessage?: string
 }) {
   const pickerRef = useRef<HTMLInputElement>(null)
 
@@ -137,6 +143,7 @@ function DateField({
   }
 
   return (
+    <>
     <div className="date-field" aria-label="日期輸入">
       <input
         className="date-text-input"
@@ -148,6 +155,8 @@ function DateField({
         value={formatDateInput(value)}
         disabled={disabled}
         aria-label="日期，請輸入年份 4 碼、月份 2 碼、日期 2 碼"
+        data-date-field={fieldName}
+        data-date-required={required}
         onChange={(event) => {
           const nextValue = formatDateInput(event.target.value)
 
@@ -171,6 +180,8 @@ function DateField({
         }}
       />
     </div>
+      {errorMessage ? <small className="date-input-error">{errorMessage}</small> : null}
+    </>
   )
 }
 
@@ -182,6 +193,7 @@ function App() {
   const selectedRecord = records.find((record) => record.id === selectedId)
   const [form, setForm] = useState<RepairFormValues>(() => toRepairFormValues())
   const [draftAttachments, setDraftAttachments] = useState<RepairAttachment[]>([])
+  const [dateNavigationError, setDateNavigationError] = useState<{ fieldName: string; message: string } | null>(null)
   const [attachmentDescription, setAttachmentDescription] = useState<(typeof ATTACHMENT_DESCRIPTIONS)[number]>('維修前')
   const [customAttachmentDescription, setCustomAttachmentDescription] = useState('')
   const [searchText, setSearchText] = useState('')
@@ -468,6 +480,43 @@ function App() {
 
   function getAttachmentDescription(): string {
     return attachmentDescription === '其他' ? customAttachmentDescription.trim() || '其他' : attachmentDescription
+  }
+
+  function moveToNextFormField(event: ReactKeyboardEvent<HTMLFormElement>) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.target instanceof HTMLTextAreaElement) {
+      return
+    }
+
+    const fields = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('input, select')).filter((field) => {
+      if (field.hasAttribute('disabled') || field.matches('.date-picker-control')) {
+        return false
+      }
+
+      return !(field instanceof HTMLInputElement && ['checkbox', 'radio', 'file', 'hidden'].includes(field.type))
+    })
+    const currentIndex = fields.indexOf(event.target as HTMLElement)
+
+    if (currentIndex < 0) {
+      return
+    }
+
+    if (event.target instanceof HTMLInputElement && event.target.matches('.date-text-input')) {
+      const dateValue = event.target.value.replaceAll('/', '-')
+      const isRequired = event.target.dataset.dateRequired === 'true'
+
+      if ((isRequired && !dateValue) || (dateValue && !isValidIsoDate(dateValue))) {
+        event.preventDefault()
+        setDateNavigationError({
+          fieldName: event.target.dataset.dateField ?? '',
+          message: '日期格式不正確，請輸入 YYYY/MM/DD 的有效日期後再按 Enter。',
+        })
+        return
+      }
+    }
+
+    event.preventDefault()
+    setDateNavigationError(null)
+    fields[currentIndex + 1]?.focus()
   }
 
   async function saveRecord() {
@@ -876,6 +925,7 @@ function App() {
               <DateField
                 value={startDateFilter}
                 disabled={false}
+                fieldName="startDateFilter"
                 onChange={(value) => {
                   setStartDateFilter(value)
                   setIsStatusFilterExplicit(false)
@@ -887,6 +937,7 @@ function App() {
               <DateField
                 value={endDateFilter}
                 disabled={false}
+                fieldName="endDateFilter"
                 onChange={(value) => {
                   setEndDateFilter(value)
                   setIsStatusFilterExplicit(false)
@@ -995,13 +1046,19 @@ function App() {
             {message}
           </p>
 
-          <form className="repair-form" onSubmit={(event) => event.preventDefault()}>
+          <form className="repair-form" onSubmit={(event) => event.preventDefault()} onKeyDown={moveToNextFormField}>
             <label>
               收到日期 *
               <DateField
                 value={form.receivedDate}
                 disabled={completed}
-                onChange={(value) => updateForm('receivedDate', value)}
+                fieldName="receivedDate"
+                required
+                errorMessage={dateNavigationError?.fieldName === 'receivedDate' ? dateNavigationError.message : undefined}
+                onChange={(value) => {
+                  setDateNavigationError(null)
+                  updateForm('receivedDate', value)
+                }}
               />
             </label>
             <label>
@@ -1042,7 +1099,12 @@ function App() {
               <DateField
                 value={form.shippedDate}
                 disabled={completed}
-                onChange={(value) => updateForm('shippedDate', value)}
+                fieldName="shippedDate"
+                errorMessage={dateNavigationError?.fieldName === 'shippedDate' ? dateNavigationError.message : undefined}
+                onChange={(value) => {
+                  setDateNavigationError(null)
+                  updateForm('shippedDate', value)
+                }}
               />
             </label>
             <label>
@@ -1063,7 +1125,12 @@ function App() {
               <DateField
                 value={form.repairDate}
                 disabled={completed}
-                onChange={(value) => updateForm('repairDate', value)}
+                fieldName="repairDate"
+                errorMessage={dateNavigationError?.fieldName === 'repairDate' ? dateNavigationError.message : undefined}
+                onChange={(value) => {
+                  setDateNavigationError(null)
+                  updateForm('repairDate', value)
+                }}
               />
             </label>
             <label>
@@ -1160,7 +1227,12 @@ function App() {
               <DateField
                 value={form.returnedDate}
                 disabled={completed}
-                onChange={(value) => updateForm('returnedDate', value)}
+                fieldName="returnedDate"
+                errorMessage={dateNavigationError?.fieldName === 'returnedDate' ? dateNavigationError.message : undefined}
+                onChange={(value) => {
+                  setDateNavigationError(null)
+                  updateForm('returnedDate', value)
+                }}
               />
             </label>
             <p className="completion-warning wide-field">
