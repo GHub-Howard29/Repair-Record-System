@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, setDoc, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDocs, onSnapshot, setDoc, writeBatch } from 'firebase/firestore'
 import { sortRepairRecords } from '../storage/repairRepository'
 import type { RepairRecord } from '../types/repair'
 import { getFirebaseFirestore, waitForFirebaseAuth } from './firebaseClient'
@@ -24,6 +24,33 @@ async function listRepairRecords(): Promise<RepairRecord[]> {
   const records = snapshot.docs.map((item) => item.data() as RepairRecord)
 
   return sortRepairRecords(records)
+}
+
+export function subscribeToRepairRecords(
+  onRecords: (records: RepairRecord[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  let active = true
+  let unsubscribe: () => void = () => {}
+
+  void waitForFirebaseAuth()
+    .then(() => {
+      if (!active) {
+        return
+      }
+
+      unsubscribe = onSnapshot(
+        collection(getFirebaseFirestore(), REPAIR_RECORDS_COLLECTION),
+        (snapshot) => onRecords(sortRepairRecords(snapshot.docs.map((item) => item.data() as RepairRecord))),
+        (error) => onError?.(error),
+      )
+    })
+    .catch((error: unknown) => onError?.(error instanceof Error ? error : new Error('Firestore 即時同步失敗。')))
+
+  return () => {
+    active = false
+    unsubscribe()
+  }
 }
 
 export const firestoreRepairRecordService: RepairRecordService = {
