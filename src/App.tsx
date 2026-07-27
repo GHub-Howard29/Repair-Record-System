@@ -1416,25 +1416,31 @@ function App() {
           </section>
 
           <section className="sync-section">
-            <h2>同步規劃</h2>
-            <p className="empty-state">
-              待同步 {syncSummary.pending} 筆；失敗 {syncSummary.failed} 筆。
-            </p>
-            <p className={syncSummary.failed > 0 ? 'mini-notice warning' : 'mini-notice'}>{syncMessage}</p>
-            {syncSummary.failed > 0 ? (
-              <p className="mini-notice warning">同步未完成，請確認提示內容後再次同步。</p>
-            ) : null}
-            <button type="button" className="secondary-action" onClick={() => void runSyncQueue()}>
-              {syncSummary.failed > 0 ? '再次同步' : '立即同步'}
-            </button>
-            <ul className="sync-list">
-              {syncPlan.map((item) => (
-                <li key={item.target}>
-                  <span>{item.title}</span>
-                  <small>{getSyncStatusLabel(item.status)}</small>
-                </li>
-              ))}
-            </ul>
+            <h2>同步狀態</h2>
+            {syncSummary.total === 0 ? (
+              <p className="mini-notice">所有資料已同步。</p>
+            ) : (
+              <>
+                <p className="empty-state">
+                  待同步 {syncSummary.pending} 筆；失敗 {syncSummary.failed} 筆。
+                </p>
+                <p className={syncSummary.failed > 0 ? 'mini-notice warning' : 'mini-notice'}>{syncMessage}</p>
+                {syncSummary.failed > 0 ? (
+                  <p className="mini-notice warning">同步未完成，請確認提示內容後再次同步。</p>
+                ) : null}
+                <button type="button" className="secondary-action" onClick={() => void runSyncQueue()}>
+                  {syncSummary.failed > 0 ? '再次同步' : '立即同步'}
+                </button>
+                <ul className="sync-list">
+                  {syncPlan.map((item) => (
+                    <li key={item.target}>
+                      <span>{item.title}（{item.count} 筆）</span>
+                      <small>{getSyncStatusLabel(item.status)}</small>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </section>
 
           <section className="desktop-history-section">
