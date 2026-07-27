@@ -66,10 +66,13 @@ const PDF_PAGE_WIDTH_MM = 210
 const PDF_PAGE_HEIGHT_MM = 297
 const PDF_PAGE_MARGIN_MM = 10
 const PDF_RENDER_WIDTH_PX = 794
+const PDF_RENDER_SCALE = 2
 
 /**
  * 行動瀏覽器對單一超長 canvas 的尺寸與記憶體限制很低。將報告切成 A4 高度的
- * 小 canvas 再逐頁寫入 PDF，可避免行動瀏覽器產生看似有效的空白檔案。
+ * 小 canvas 再逐頁寫入 PDF，可避免行動瀏覽器產生看似有效的空白檔案。以 2 倍
+ * 解析度繪製，讓手機 PDF 的文字與照片接近電腦列印的清晰度，同時維持分頁以避免
+ * 單一超大 canvas 耗盡行動裝置記憶體。
  */
 async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -101,7 +104,7 @@ async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
       backgroundColor: '#ffffff',
       height: renderHeight,
       logging: false,
-      scale: 1,
+      scale: PDF_RENDER_SCALE,
       useCORS: true,
       width: sourceWidth,
       windowHeight: renderHeight,
@@ -119,7 +122,7 @@ async function renderMobilePdf(source: HTMLElement): Promise<Blob> {
     }
 
     const imageHeightMm = (renderHeight * contentWidthMm) / sourceWidth
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', PDF_PAGE_MARGIN_MM, PDF_PAGE_MARGIN_MM, contentWidthMm, imageHeightMm)
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', PDF_PAGE_MARGIN_MM, PDF_PAGE_MARGIN_MM, contentWidthMm, imageHeightMm)
   }
 
   return pdf.output('blob')
