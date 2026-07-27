@@ -355,6 +355,13 @@ body,
   font-weight: 700;
 }
 
+.notice.completion-warning {
+  margin: 16px 0;
+  border-color: #e53e3e;
+  background: transparent;
+  color: #c53030;
+}
+
 .mini-notice {
   margin: 12px 0;
   padding: 10px;

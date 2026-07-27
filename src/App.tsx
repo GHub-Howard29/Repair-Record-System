@@ -1048,7 +1048,15 @@ function App() {
             </div>
           </div>
 
-          <p className={message.includes('不可') || message.includes('請完成') || message.includes('尚未儲存') ? 'notice warning' : 'notice'}>
+          <p
+            className={
+              message.includes('送回日期已填寫')
+                ? 'notice completion-warning'
+                : message.includes('不可') || message.includes('請完成') || message.includes('尚未儲存')
+                  ? 'notice warning'
+                  : 'notice'
+            }
+          >
             {message}
           </p>
 
