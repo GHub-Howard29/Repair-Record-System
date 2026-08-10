@@ -27,3 +27,12 @@ export function getDateInputDraft(nextRawValue: string, previousDraft: string, s
 export function toStoredDateValue(draft: string): string {
   return draft.replaceAll('/', '-')
 }
+
+export function restoreInvalidDateInput(value: string, valueBeforeEditing: string, required: boolean): string {
+  if ((!required && value === '') || isValidIsoDate(value)) {
+    return value
+  }
+
+  return valueBeforeEditing
+}
+import { isValidIsoDate } from '../warranty/warranty'

@@ -201,17 +201,31 @@ async function printPdfOnDesktop(record: RepairRecord): Promise<void> {
   printWindow.addEventListener('afterprint', cleanup, { once: true })
 
   try {
-    printDocument.write(await buildRepairPrintHtml(record))
+    const printHtml = await buildRepairPrintHtml(record)
+
+    printDocument.write(printHtml)
     printDocument.close()
+    await waitForPrintDocumentReady(printDocument, printWindow)
     document.title = printTitle
-    window.setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-    }, 0)
+    printWindow.focus()
+    printWindow.print()
   } catch (error) {
     cleanup()
     throw error
   }
+}
+
+async function waitForPrintDocumentReady(printDocument: Document, printWindow: Window): Promise<void> {
+  const images = Array.from(printDocument.querySelectorAll('img'))
+
+  await Promise.all(images.map((image) => waitForImageOrTimeout(image, 5_000)))
+  await Promise.race([
+    printDocument.fonts.ready,
+    new Promise<void>((resolve) => printWindow.setTimeout(resolve, 1_500)),
+  ])
+  await new Promise<void>((resolve) =>
+    printWindow.requestAnimationFrame(() => printWindow.requestAnimationFrame(() => resolve())),
+  )
 }
 
 function isMobileDevice(): boolean {

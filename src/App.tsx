@@ -33,7 +33,7 @@ import {
   validateRepairCompletion,
   validateRepairForm,
 } from './features/repair/repairRules'
-import { getDateInputDraft, toStoredDateValue } from './features/repair/dateInput'
+import { getDateInputDraft, restoreInvalidDateInput, toStoredDateValue } from './features/repair/dateInput'
 import {
   createAttachmentFromFile,
   getAttachmentLabel,
@@ -93,7 +93,16 @@ function DateField({
   errorMessage?: string
 }) {
   const pickerRef = useRef<HTMLInputElement>(null)
+  const valueBeforeEditingRef = useRef(value)
   const draft = value.replaceAll('-', '/')
+
+  function restoreInvalidValue() {
+    const restoredValue = restoreInvalidDateInput(value, valueBeforeEditingRef.current, required)
+
+    if (restoredValue !== value) {
+      onChange(restoredValue)
+    }
+  }
 
   function chooseDate() {
     const picker = pickerRef.current
@@ -125,9 +134,19 @@ function DateField({
         aria-label="日期，請輸入年份 4 碼、月份 2 碼、日期 2 碼"
         data-date-field={fieldName}
         data-date-required={required}
+        onFocus={() => {
+          valueBeforeEditingRef.current = value
+        }}
         onChange={(event) => {
           const nextDraft = getDateInputDraft(event.target.value, draft, event.target.selectionStart)
           onChange(toStoredDateValue(nextDraft))
+        }}
+        onBlur={restoreInvalidValue}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onChange(valueBeforeEditingRef.current)
+          }
         }}
       />
       <button type="button" className="date-picker-button" onClick={chooseDate} disabled={disabled} aria-label="選擇日期">

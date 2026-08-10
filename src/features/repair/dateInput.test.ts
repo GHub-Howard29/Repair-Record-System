@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateInput, getDateInputDraft, toStoredDateValue } from './dateInput'
+import { formatDateInput, getDateInputDraft, restoreInvalidDateInput, toStoredDateValue } from './dateInput'
 
 describe('日期文字輸入', () => {
   it('從尾端輸入時自動補上日期分隔符號', () => {
@@ -18,5 +18,16 @@ describe('日期文字輸入', () => {
   it('純數字貼上時轉為顯示格式，儲存時轉回 ISO 分隔符號', () => {
     expect(formatDateInput('20250627')).toBe('2025/06/27')
     expect(toStoredDateValue('2025/06/27')).toBe('2025-06-27')
+  })
+
+  it('離開欄位時將不完整或不存在的日期還原為修改前的值', () => {
+    expect(restoreInvalidDateInput('202-06-27', '2026-06-27', false)).toBe('2026-06-27')
+    expect(restoreInvalidDateInput('2026-02-30', '2026-02-28', false)).toBe('2026-02-28')
+  })
+
+  it('保留有效修改，且允許清空非必填日期', () => {
+    expect(restoreInvalidDateInput('2025-06-27', '2026-06-27', false)).toBe('2025-06-27')
+    expect(restoreInvalidDateInput('', '2026-06-27', false)).toBe('')
+    expect(restoreInvalidDateInput('', '2026-06-27', true)).toBe('2026-06-27')
   })
 })
