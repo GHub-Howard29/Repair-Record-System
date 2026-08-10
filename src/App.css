@@ -70,7 +70,8 @@ body,
 
 .menu-action,
 .mobile-menu,
-.mobile-menu-backdrop {
+.mobile-menu-backdrop,
+.scroll-to-top-action {
   display: none;
 }
 
@@ -810,6 +811,32 @@ body,
     font: inherit;
     font-size: 24px;
     cursor: pointer;
+  }
+
+  .scroll-to-top-action {
+    position: fixed;
+    right: 20px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    z-index: 15;
+    display: inline-grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #68d391;
+    border-radius: 50%;
+    color: #ffffff;
+    background: #2f855a;
+    box-shadow: 0 8px 20px rgba(23, 32, 51, 0.24);
+    font: inherit;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .scroll-to-top-action:active {
+    transform: translateY(1px);
   }
 
   .header-title {

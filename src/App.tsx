@@ -33,6 +33,7 @@ import {
   validateRepairCompletion,
   validateRepairForm,
 } from './features/repair/repairRules'
+import { getDateInputDraft, toStoredDateValue } from './features/repair/dateInput'
 import {
   createAttachmentFromFile,
   getAttachmentLabel,
@@ -76,42 +77,6 @@ function getHistoryChargeSummary(record: RepairRecord): string {
   return chargedItems.length > 0 ? chargedItems.join('、') : '無收費項目'
 }
 
-function formatDateInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8)
-
-  if (digits.length <= 4) {
-    return digits
-  }
-
-  if (digits.length <= 6) {
-    return `${digits.slice(0, 4)}/${digits.slice(4)}`
-  }
-
-  return `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6)}`
-}
-
-function isDateInputInRange(value: string): boolean {
-  const digits = value.replace(/\D/g, '')
-
-  if (digits.length >= 6) {
-    const month = Number(digits.slice(4, 6))
-
-    if (month < 1 || month > 12) {
-      return false
-    }
-  }
-
-  if (digits.length === 8) {
-    const day = Number(digits.slice(6, 8))
-
-    if (day < 1 || day > 31) {
-      return false
-    }
-  }
-
-  return true
-}
-
 function DateField({
   value,
   disabled,
@@ -128,6 +93,7 @@ function DateField({
   errorMessage?: string
 }) {
   const pickerRef = useRef<HTMLInputElement>(null)
+  const draft = value.replaceAll('-', '/')
 
   function chooseDate() {
     const picker = pickerRef.current
@@ -154,17 +120,14 @@ function DateField({
         autoComplete="off"
         placeholder="YYYY/MM/DD"
         maxLength={10}
-        value={formatDateInput(value)}
+        value={draft}
         disabled={disabled}
         aria-label="日期，請輸入年份 4 碼、月份 2 碼、日期 2 碼"
         data-date-field={fieldName}
         data-date-required={required}
         onChange={(event) => {
-          const nextValue = formatDateInput(event.target.value)
-
-          if (isDateInputInRange(nextValue)) {
-            onChange(nextValue.replaceAll('/', '-'))
-          }
+          const nextDraft = getDateInputDraft(event.target.value, draft, event.target.selectionStart)
+          onChange(toStoredDateValue(nextDraft))
         }}
       />
       <button type="button" className="date-picker-button" onClick={chooseDate} disabled={disabled} aria-label="選擇日期">
@@ -206,6 +169,7 @@ function App() {
   const [isStatusFilterExplicit, setIsStatusFilterExplicit] = useState(false)
   const [mobileView, setMobileView] = useState<'records' | 'editor' | 'details'>('records')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isScrollToTopVisible, setIsScrollToTopVisible] = useState(() => window.scrollY > 0)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
   const [message, setMessage] = useState(
     isGoogleAuthConfigured() ? '請先使用新增按鈕後開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
@@ -398,6 +362,14 @@ function App() {
       (error) => setSyncMessage(`即時同步失敗：${error.message}`),
     )
   }, [selectedId, user])
+
+  useEffect(() => {
+    const updateScrollToTopVisibility = () => setIsScrollToTopVisible(window.scrollY > 0)
+
+    window.addEventListener('scroll', updateScrollToTopVisibility, { passive: true })
+
+    return () => window.removeEventListener('scroll', updateScrollToTopVisibility)
+  }, [])
 
   useEffect(() => {
     const retryWhenOnline = () => {
@@ -1471,6 +1443,17 @@ function App() {
 
         </aside>
       </div>
+      {isScrollToTopVisible ? (
+        <button
+          type="button"
+          className="scroll-to-top-action"
+          aria-label="回到頁面頂端"
+          title="回到頁面頂端"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <span aria-hidden="true">↑</span>
+        </button>
+      ) : null}
       {previewAttachment && getAttachmentPreviewUrl(previewAttachment) ? (
         <div className="preview-dialog" role="dialog" aria-modal="true" aria-label="附件預覽">
           <button type="button" className="preview-backdrop" onClick={() => setPreviewAttachment(null)} aria-label="關閉預覽" />
