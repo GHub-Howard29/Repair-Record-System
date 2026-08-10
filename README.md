@@ -49,10 +49,11 @@ VITE_FIREBASE_APP_ID=
 
 # Google Drive attachments
 VITE_GOOGLE_DRIVE_FOLDER_ID=
-VITE_GOOGLE_DRIVE_SCOPE=https://www.googleapis.com/auth/drive.file
+VITE_GOOGLE_DRIVE_SCOPE=https://www.googleapis.com/auth/drive
 ```
 
 `VITE_GOOGLE_CLIENT_ID` 不是 Email，必須是 Google Cloud Console 建立的 OAuth 2.0 Client ID。
+Drive OAuth Client ID、Client Secret 與 refresh token 只供 Firebase Functions 後端使用，不得放入任何 `VITE_*` 環境變數。
 
 本機開發時需在 Google OAuth 的 Authorized JavaScript origins 加入：
 

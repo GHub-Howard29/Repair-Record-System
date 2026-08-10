@@ -9,6 +9,20 @@ export function getAttachmentLabel(index: number): string {
   return ATTACHMENT_LABELS[index] ?? `附件${index + 1}`
 }
 
+export function getAttachmentSyncStatusLabel(attachment: RepairAttachment): string {
+  if (attachment.syncStatus === 'local') {
+    return attachment.previewUrl
+      ? '尚未上傳至雲端'
+      : '尚未上傳至雲端（照片保留於來源裝置）'
+  }
+
+  return {
+    pending: '等待同步',
+    synced: '已完成同步',
+    failed: '同步失敗',
+  }[attachment.syncStatus]
+}
+
 export function canAddAttachment(attachments: RepairAttachment[]): boolean {
   return attachments.length < MAX_ATTACHMENT_COUNT
 }

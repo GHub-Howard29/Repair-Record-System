@@ -36,6 +36,7 @@ import {
 import {
   createAttachmentFromFile,
   getAttachmentLabel,
+  getAttachmentSyncStatusLabel,
   relabelAttachments,
   validateAttachmentFile,
 } from './features/attachment/attachmentRules'
@@ -52,7 +53,7 @@ import type { PurchaseType, RepairAttachment, RepairFormValues, RepairRecord } f
 const repairRecordService = isFirebaseConfigured() ? firestoreRepairRecordService : localRepairRecordService
 const attachmentStorageService = isGoogleDriveConfigured() ? googleDriveAttachmentService : localAttachmentStorageService
 
-function getSyncStatusLabel(status: 'local' | 'pending' | 'synced' | 'failed'): string {
+function getSyncTaskStatusLabel(status: 'local' | 'pending' | 'synced' | 'failed'): string {
   return {
     local: '保留在本機',
     pending: '等待同步',
@@ -1338,7 +1339,7 @@ function App() {
                       <span>{attachment.label || getAttachmentLabel(index)}</span>
                     </button>
                     <small>
-                      {(attachment.size / 1024).toFixed(0)} KB · {getSyncStatusLabel(attachment.syncStatus)}
+                      {(attachment.size / 1024).toFixed(0)} KB · {getAttachmentSyncStatusLabel(attachment)}
                     </small>
                     <div className="attachment-actions">
                       <label className={completed ? 'text-action disabled' : 'text-action'}>
@@ -1443,7 +1444,7 @@ function App() {
                   {syncPlan.map((item) => (
                     <li key={item.target}>
                       <span>{item.title}（{item.count} 筆）</span>
-                      <small>{getSyncStatusLabel(item.status)}</small>
+                      <small>{getSyncTaskStatusLabel(item.status)}</small>
                     </li>
                   ))}
                 </ul>
