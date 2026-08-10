@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateInput, getDateInputDraft, restoreInvalidDateInput, toStoredDateValue } from './dateInput'
+import {
+  formatDateInput,
+  getDateInputDraft,
+  promoteInitialValidDate,
+  restoreInvalidDateInput,
+  toStoredDateValue,
+} from './dateInput'
 
 describe('日期文字輸入', () => {
   it('從尾端輸入時自動補上日期分隔符號', () => {
@@ -29,5 +35,11 @@ describe('日期文字輸入', () => {
     expect(restoreInvalidDateInput('2025-06-27', '2026-06-27', false)).toBe('2025-06-27')
     expect(restoreInvalidDateInput('', '2026-06-27', false)).toBe('')
     expect(restoreInvalidDateInput('', '2026-06-27', true)).toBe('2026-06-27')
+  })
+
+  it('首次輸入完成有效日期後，即使尚未儲存也升級為復原基準', () => {
+    expect(promoteInitialValidDate('', '2026-06-27')).toBe('2026-06-27')
+    expect(promoteInitialValidDate('', '2026-02-30')).toBe('')
+    expect(promoteInitialValidDate('2025-06-27', '2026-06-27')).toBe('2025-06-27')
   })
 })

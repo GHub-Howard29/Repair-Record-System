@@ -35,4 +35,8 @@ export function restoreInvalidDateInput(value: string, valueBeforeEditing: strin
 
   return valueBeforeEditing
 }
+
+export function promoteInitialValidDate(valueBeforeEditing: string, nextValue: string): string {
+  return valueBeforeEditing === '' && isValidIsoDate(nextValue) ? nextValue : valueBeforeEditing
+}
 import { isValidIsoDate } from '../warranty/warranty'

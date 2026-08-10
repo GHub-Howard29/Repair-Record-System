@@ -105,7 +105,7 @@ describe('列印維修紀錄', () => {
     expect(html).toContain('庭茂農業生技股份有限公司')
     expect(html).toContain('font-family: "DFKai-SB", "BiauKai", "標楷體", serif')
     expect(html).toContain('company-brand')
-    expect(html).toContain('nice-green-logo.jpg')
+    expect(html).toContain('data:image/jpeg;base64,')
     expect(html).toContain('justify-content: center')
   })
 

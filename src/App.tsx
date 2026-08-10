@@ -33,7 +33,12 @@ import {
   validateRepairCompletion,
   validateRepairForm,
 } from './features/repair/repairRules'
-import { getDateInputDraft, restoreInvalidDateInput, toStoredDateValue } from './features/repair/dateInput'
+import {
+  getDateInputDraft,
+  promoteInitialValidDate,
+  restoreInvalidDateInput,
+  toStoredDateValue,
+} from './features/repair/dateInput'
 import {
   createAttachmentFromFile,
   getAttachmentLabel,
@@ -139,7 +144,10 @@ function DateField({
         }}
         onChange={(event) => {
           const nextDraft = getDateInputDraft(event.target.value, draft, event.target.selectionStart)
-          onChange(toStoredDateValue(nextDraft))
+          const nextValue = toStoredDateValue(nextDraft)
+
+          valueBeforeEditingRef.current = promoteInitialValidDate(valueBeforeEditingRef.current, nextValue)
+          onChange(nextValue)
         }}
         onBlur={restoreInvalidValue}
         onKeyDown={(event) => {
@@ -757,6 +765,7 @@ function App() {
 
   async function exportRecordPdf(record: RepairRecord) {
     try {
+      setExportMessage('正在準備 PDF，請稍候。')
       await browserExportService.exportRecordPdf(record)
       setExportMessage('PDF 已產生；電腦可於列印視窗另存，手機可選擇 PDF 預覽程式。檔名會自動帶入送回日期與客戶名稱。')
     } catch (error) {

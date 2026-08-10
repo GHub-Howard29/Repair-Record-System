@@ -1,5 +1,5 @@
 import type { RepairRecord } from '../types/repair'
-import niceGreenLogoUrl from '../assets/nice-green-logo.jpg'
+import niceGreenLogoUrl from '../assets/nice-green-logo.jpg?inline'
 import { getPurchaseTypeLabel } from '../features/repair/purchaseType'
 import { getWarrantyStatus } from '../features/warranty/warranty'
 
@@ -221,7 +221,7 @@ async function waitForPrintDocumentReady(printDocument: Document, printWindow: W
   await Promise.all(images.map((image) => waitForImageOrTimeout(image, 5_000)))
   await Promise.race([
     printDocument.fonts.ready,
-    new Promise<void>((resolve) => printWindow.setTimeout(resolve, 1_500)),
+    new Promise<void>((resolve) => printWindow.setTimeout(resolve, 250)),
   ])
   await new Promise<void>((resolve) =>
     printWindow.requestAnimationFrame(() => printWindow.requestAnimationFrame(() => resolve())),
