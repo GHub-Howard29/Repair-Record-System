@@ -49,6 +49,7 @@ import {
   relabelAttachments,
   validateAttachmentFile,
 } from './features/attachment/attachmentRules'
+import { runWithMinimumLock } from './features/attachment/attachmentDeleteLock'
 import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS } from './features/repair/repairOptions'
 import { getPurchaseTypeLabel } from './features/repair/purchaseType'
 import { getWarrantyStatus, isValidIsoDate } from './features/warranty/warranty'
@@ -739,7 +740,7 @@ function App() {
 
   async function removeAttachment(attachmentId: string) {
     await runMutation(
-      () => removeAttachmentOperation(attachmentId),
+      () => runWithMinimumLock(() => removeAttachmentOperation(attachmentId)),
       () => setAttachmentMessage('目前正在處理上一個附件，請稍候。'),
     )
   }
