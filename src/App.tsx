@@ -11,6 +11,7 @@ import { appConfig, isFirebaseConfigured, isGoogleAuthConfigured, isGoogleDriveC
 import { buildSyncPlan } from './features/sync/syncPlan'
 import { getSyncEnvironment } from './features/sync/syncEnvironment'
 import { processSyncQueue } from './features/sync/syncProcessor'
+import { getCloudRecordsSafeToPersist, mergeCloudRecordsForDisplay } from './features/sync/syncRecordMerge'
 import { createCoalescingSyncRunner, type CoalescingSyncRunner } from './features/sync/syncRunner'
 import {
   discardAttachmentSync,
@@ -411,31 +412,13 @@ function App() {
         }
 
         setRecords((currentRecords) => {
-          const nextRecords = cloudRecords.map((cloudRecord) => {
-            const localRecord = currentRecords.find((record) => record.id === cloudRecord.id)
-            const hasPendingTasks = queuedTasks.some((task) => task.recordId === cloudRecord.id)
+          return mergeCloudRecordsForDisplay(cloudRecords, currentRecords, queuedTasks)
+        })
 
-            if (localRecord && hasPendingTasks) {
-              return localRecord
-            }
+        void localRepairRecordService.list().then((storedRecords) => {
+          const safeCloudRecords = getCloudRecordsSafeToPersist(cloudRecords, storedRecords, loadSyncQueue())
 
-            return {
-              ...cloudRecord,
-              attachments: cloudRecord.attachments.map((attachment) => ({
-                ...attachment,
-                previewUrl: localRecord?.attachments.find((item) => item.id === attachment.id)?.previewUrl ?? attachment.previewUrl,
-              })),
-            }
-          })
-          const pendingLocalRecords = currentRecords.filter(
-            (record) =>
-              !cloudRecords.some((cloudRecord) => cloudRecord.id === record.id)
-              && queuedTasks.some((task) => task.recordId === record.id),
-          )
-          const mergedRecords = [...nextRecords, ...pendingLocalRecords]
-
-          void localRepairRecordService.replaceAll(mergedRecords)
-          return mergedRecords
+          return Promise.all(safeCloudRecords.map((record) => localRepairRecordService.save(record)))
         })
       },
       (error) => setSyncMessage(`即時同步失敗：${error.message}`),
