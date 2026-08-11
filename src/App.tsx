@@ -11,6 +11,7 @@ import { appConfig, isFirebaseConfigured, isGoogleAuthConfigured, isGoogleDriveC
 import { buildSyncPlan } from './features/sync/syncPlan'
 import { getSyncEnvironment } from './features/sync/syncEnvironment'
 import { processSyncQueue } from './features/sync/syncProcessor'
+import { createCoalescingSyncRunner, type CoalescingSyncRunner } from './features/sync/syncRunner'
 import {
   discardAttachmentSync,
   enqueueAttachmentDeletionSync,
@@ -215,12 +216,47 @@ function App() {
   )
   const googleButtonRef = useRef<HTMLDivElement | null>(null)
   const mutationInProgressRef = useRef(false)
-  const syncPromiseRef = useRef<Promise<void> | null>(null)
+  const syncRunnerRef = useRef<CoalescingSyncRunner | null>(null)
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
   const operationInProgress = isMutating
   const serialNumberError = getSerialNumberError(form.serialNumber)
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
   const attachmentList = selectedRecord ? selectedRecord.attachments : draftAttachments
+
+  if (!syncRunnerRef.current) {
+    syncRunnerRef.current = createCoalescingSyncRunner({
+      async runRound() {
+        const tasksToSync = loadSyncQueue()
+        const hasRunnableTasks = tasksToSync.some((task) => task.status === 'pending' || task.status === 'local')
+
+        setSyncTasks(tasksToSync)
+
+        if (!hasRunnableTasks) {
+          if (tasksToSync.length === 0) {
+            setSyncMessage('目前沒有待同步資料。')
+          }
+          return
+        }
+
+        const result = await processSyncQueue({
+          environment: getSyncEnvironment(),
+          repairRecordService,
+          localRepairRecordService,
+          attachmentStorageService,
+          onProgress(nextRecords, nextTasks) {
+            setRecords(nextRecords)
+            setSyncTasks(nextTasks)
+          },
+        })
+
+        setRecords(result.records)
+        setSyncTasks(result.tasks)
+        setSyncMessage(result.message)
+      },
+      hasTrailingWork: () => loadSyncQueue().some((task) => task.status === 'pending'),
+      onRunningChange: setIsSyncing,
+    })
+  }
   const availableFaultParts = useMemo(
     () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])),
     [formFaultParts],
@@ -798,45 +834,11 @@ function App() {
   }
 
   async function runSyncQueue(retryFailed = false) {
-    if (syncPromiseRef.current) {
-      return
+    if (retryFailed) {
+      retryFailedSyncTasks()
     }
 
-    const tasksToSync = retryFailed ? retryFailedSyncTasks() : loadSyncQueue()
-
-    if (tasksToSync.length === 0) {
-      setSyncMessage('目前沒有待同步資料。')
-      return
-    }
-
-    const syncPromise = (async () => {
-      setIsSyncing(true)
-      const result = await processSyncQueue({
-        environment: getSyncEnvironment(),
-        repairRecordService,
-        localRepairRecordService,
-        attachmentStorageService,
-        onProgress(nextRecords, nextTasks) {
-          setRecords(nextRecords)
-          setSyncTasks(nextTasks)
-        },
-      })
-
-      setRecords(result.records)
-      setSyncTasks(result.tasks)
-      setSyncMessage(result.message)
-    })()
-
-    syncPromiseRef.current = syncPromise
-
-    try {
-      await syncPromise
-    } finally {
-      if (syncPromiseRef.current === syncPromise) {
-        syncPromiseRef.current = null
-      }
-      setIsSyncing(false)
-    }
+    await syncRunnerRef.current?.request()
   }
 
   async function exportRecordPdf(record: RepairRecord) {
