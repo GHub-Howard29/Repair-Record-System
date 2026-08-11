@@ -1,6 +1,6 @@
 export type PurchaseType = 'customer' | 'online' | 'demo' | ''
 
-export type SyncStatus = 'local' | 'pending' | 'synced' | 'failed'
+export type SyncStatus = 'local' | 'pending' | 'syncing' | 'synced' | 'failed'
 
 export interface RepairCharge {
   id: string

@@ -18,6 +18,7 @@ export function getAttachmentSyncStatusLabel(attachment: RepairAttachment): stri
 
   return {
     pending: '等待同步',
+    syncing: '同步中',
     synced: '已完成同步',
     failed: '同步失敗',
   }[attachment.syncStatus]

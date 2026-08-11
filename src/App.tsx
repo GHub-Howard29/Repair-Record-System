@@ -17,6 +17,7 @@ import {
   enqueueAttachmentSync,
   enqueueRepairTextSync,
   loadSyncQueue,
+  retryFailedSyncTasks,
   saveSyncQueue,
   summarizeSyncQueue,
   type SyncTask,
@@ -59,10 +60,11 @@ import type { PurchaseType, RepairAttachment, RepairFormValues, RepairRecord } f
 const repairRecordService = isFirebaseConfigured() ? firestoreRepairRecordService : localRepairRecordService
 const attachmentStorageService = isGoogleDriveConfigured() ? googleDriveAttachmentService : localAttachmentStorageService
 
-function getSyncTaskStatusLabel(status: 'local' | 'pending' | 'synced' | 'failed'): string {
+function getSyncTaskStatusLabel(status: 'local' | 'pending' | 'syncing' | 'synced' | 'failed'): string {
   return {
     local: '保留在本機',
     pending: '等待同步',
+    syncing: '同步中',
     synced: '已完成同步',
     failed: '同步失敗',
   }[status]
@@ -215,7 +217,7 @@ function App() {
   const mutationInProgressRef = useRef(false)
   const syncPromiseRef = useRef<Promise<void> | null>(null)
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
-  const operationInProgress = isMutating || isSyncing
+  const operationInProgress = isMutating
   const serialNumberError = getSerialNumberError(form.serialNumber)
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
   const attachmentList = selectedRecord ? selectedRecord.attachments : draftAttachments
@@ -305,15 +307,10 @@ function App() {
         const queuedTasks = loadSyncQueue()
 
         localRecords.forEach((localRecord) => {
-          const hasPendingTextSync = queuedTasks.some(
-            (task) => task.kind === 'repair-text' && task.recordId === localRecord.id,
-          )
-          const hasPendingAttachmentSync = queuedTasks.some(
-            (task) => task.kind === 'attachment' && task.recordId === localRecord.id,
-          )
+          const hasPendingTasks = queuedTasks.some((task) => task.recordId === localRecord.id)
           const cloudRecord = recordsById.get(localRecord.id)
 
-          if (hasPendingTextSync && (!cloudRecord || localRecord.updatedAt >= cloudRecord.updatedAt)) {
+          if (hasPendingTasks) {
             recordsById.set(localRecord.id, localRecord)
             return
           }
@@ -326,9 +323,6 @@ function App() {
               attachments: cloudRecord.attachments.map((attachment) => ({
                 ...attachment,
                 previewUrl: localAttachments.get(attachment.id)?.previewUrl ?? attachment.previewUrl,
-                syncStatus: hasPendingAttachmentSync
-                  ? localAttachments.get(attachment.id)?.syncStatus ?? attachment.syncStatus
-                  : attachment.syncStatus,
               })),
             })
           }
@@ -341,6 +335,10 @@ function App() {
         if (!ignore) {
           setRecords(nextRecords)
           setSyncTasks(nextTasks)
+
+          if (nextTasks.some((task) => task.status === 'pending' || task.status === 'local')) {
+            void runSyncQueue()
+          }
         }
       } catch (error) {
         if (!ignore) {
@@ -368,15 +366,22 @@ function App() {
 
     return subscribeToRepairRecords(
       (cloudRecords) => {
+        const queuedTasks = loadSyncQueue()
         const selectedCloudRecord = cloudRecords.find((record) => record.id === selectedId)
+        const selectedRecordHasPendingTasks = queuedTasks.some((task) => task.recordId === selectedId)
 
-        if (selectedCloudRecord) {
+        if (selectedCloudRecord && !selectedRecordHasPendingTasks && !mutationInProgressRef.current) {
           setForm(toRepairFormValues(selectedCloudRecord))
         }
 
         setRecords((currentRecords) => {
           const nextRecords = cloudRecords.map((cloudRecord) => {
             const localRecord = currentRecords.find((record) => record.id === cloudRecord.id)
+            const hasPendingTasks = queuedTasks.some((task) => task.recordId === cloudRecord.id)
+
+            if (localRecord && hasPendingTasks) {
+              return localRecord
+            }
 
             return {
               ...cloudRecord,
@@ -386,9 +391,15 @@ function App() {
               })),
             }
           })
+          const pendingLocalRecords = currentRecords.filter(
+            (record) =>
+              !cloudRecords.some((cloudRecord) => cloudRecord.id === record.id)
+              && queuedTasks.some((task) => task.recordId === record.id),
+          )
+          const mergedRecords = [...nextRecords, ...pendingLocalRecords]
 
-          void localRepairRecordService.replaceAll(nextRecords)
-          return nextRecords
+          void localRepairRecordService.replaceAll(mergedRecords)
+          return mergedRecords
         })
       },
       (error) => setSyncMessage(`即時同步失敗：${error.message}`),
@@ -405,7 +416,7 @@ function App() {
 
   useEffect(() => {
     const retryWhenOnline = () => {
-      if (syncTasks.length > 0) {
+      if (loadSyncQueue().length > 0) {
         void runSyncQueue()
       }
     }
@@ -413,9 +424,7 @@ function App() {
     window.addEventListener('online', retryWhenOnline)
 
     return () => window.removeEventListener('online', retryWhenOnline)
-    // 同步函式會隨目前佇列與資料重建，事件監聽也需同步採用最新閉包。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, syncTasks])
+  }, [])
 
   useEffect(() => {
     if (user || !isGoogleAuthConfigured() || !googleButtonRef.current) {
@@ -526,7 +535,7 @@ function App() {
   }
 
   async function runMutation(action: () => Promise<void>, onBusy: () => void) {
-    if (mutationInProgressRef.current || syncPromiseRef.current) {
+    if (mutationInProgressRef.current) {
       onBusy()
       return
     }
@@ -543,7 +552,7 @@ function App() {
   }
 
   async function saveRecord() {
-    await runMutation(saveRecordOperation, () => setMessage('目前正在儲存或同步，請等待完成。'))
+    await runMutation(saveRecordOperation, () => setMessage('目前正在處理上一個操作，請稍候。'))
   }
 
   async function saveRecordOperation() {
@@ -569,10 +578,13 @@ function App() {
       return
     }
 
-    const builtRecord = buildRepairRecord(form, selectedRecord)
+    const latestSelectedRecord = selectedRecord
+      ? (await localRepairRecordService.list()).find((record) => record.id === selectedRecord.id) ?? selectedRecord
+      : undefined
+    const builtRecord = buildRepairRecord(form, latestSelectedRecord)
     const nextRecord = {
       ...builtRecord,
-      attachments: selectedRecord ? relabelAttachments(selectedRecord.attachments) : draftAttachments,
+      attachments: latestSelectedRecord ? relabelAttachments(latestSelectedRecord.attachments) : draftAttachments,
     }
     try {
       await persistRecord(nextRecord, draftAttachments.map((attachment) => attachment.id))
@@ -596,7 +608,7 @@ function App() {
   async function addAttachment(files: FileList | null) {
     await runMutation(
       () => addAttachmentOperation(files),
-      () => setAttachmentMessage('目前正在處理或同步附件，請等待完成。'),
+      () => setAttachmentMessage('目前正在處理上一個附件，請稍候。'),
     )
   }
 
@@ -627,9 +639,10 @@ function App() {
         return
       }
 
+      const latestRecord = (await localRepairRecordService.list()).find((record) => record.id === selectedRecord.id) ?? selectedRecord
       const nextRecord = {
-        ...selectedRecord,
-        attachments: [...selectedRecord.attachments, attachment],
+        ...latestRecord,
+        attachments: [...latestRecord.attachments, attachment],
         updatedAt: new Date().toISOString(),
       }
 
@@ -643,7 +656,7 @@ function App() {
   async function replaceAttachment(attachmentId: string, files: FileList | null) {
     await runMutation(
       () => replaceAttachmentOperation(attachmentId, files),
-      () => setAttachmentMessage('目前正在處理或同步附件，請等待完成。'),
+      () => setAttachmentMessage('目前正在處理上一個附件，請稍候。'),
     )
   }
 
@@ -678,15 +691,16 @@ function App() {
         return
       }
 
-      const replacedAttachment = selectedRecord.attachments.find((current) => current.id === attachmentId)
+      const latestRecord = (await localRepairRecordService.list()).find((record) => record.id === selectedRecord.id) ?? selectedRecord
+      const replacedAttachment = latestRecord.attachments.find((current) => current.id === attachmentId)
 
       if (!replacedAttachment) {
         return
       }
 
       const nextRecord = {
-        ...selectedRecord,
-        attachments: selectedRecord.attachments.map((current) =>
+        ...latestRecord,
+        attachments: latestRecord.attachments.map((current) =>
           current.id === attachmentId ? { ...attachment, id: attachmentId } : current,
         ),
         updatedAt: new Date().toISOString(),
@@ -707,7 +721,7 @@ function App() {
   async function removeAttachment(attachmentId: string) {
     await runMutation(
       () => removeAttachmentOperation(attachmentId),
-      () => setAttachmentMessage('目前正在處理或同步附件，請等待完成。'),
+      () => setAttachmentMessage('目前正在處理上一個附件，請稍候。'),
     )
   }
 
@@ -724,7 +738,8 @@ function App() {
       return
     }
 
-    const attachment = selectedRecord.attachments.find((item) => item.id === attachmentId)
+    const latestRecord = (await localRepairRecordService.list()).find((record) => record.id === selectedRecord.id) ?? selectedRecord
+    const attachment = latestRecord.attachments.find((item) => item.id === attachmentId)
 
     if (!attachment) {
       return
@@ -732,8 +747,8 @@ function App() {
 
     try {
       const nextRecord = {
-        ...selectedRecord,
-        attachments: selectedRecord.attachments.filter((item) => item.id !== attachmentId),
+        ...latestRecord,
+        attachments: latestRecord.attachments.filter((item) => item.id !== attachmentId),
         updatedAt: new Date().toISOString(),
       }
 
@@ -752,9 +767,13 @@ function App() {
     attachmentIdsToDiscard: string[] = [],
   ) {
     const nextRecords = await localRepairRecordService.save(record)
-    const nextTextTasks = enqueueRepairTextSync(syncTasks, record)
+    const nextTextTasks = enqueueRepairTextSync(loadSyncQueue(), record)
     const nextAttachmentTasks = attachmentIds.reduce(
-      (tasks, attachmentId) => enqueueAttachmentSync(tasks, record.id, attachmentId),
+      (tasks, attachmentId) => {
+        const attachment = record.attachments.find((item) => item.id === attachmentId)
+
+        return attachment ? enqueueAttachmentSync(tasks, record.id, attachment) : tasks
+      },
       nextTextTasks,
     )
     const tasksWithoutDiscardedAttachments = attachmentIdsToDiscard.reduce(
@@ -774,25 +793,16 @@ function App() {
     setSyncTasks(nextTasks)
     setSelectedId(record.id)
     setForm(toRepairFormValues(record))
-    setMessage('已儲存到本機，正在自動同步雲端。')
-    await runSyncQueue(nextRecords, nextTasks, record.id, true)
+    setMessage('已儲存到本機，正在背景同步雲端，可繼續操作。')
+    void runSyncQueue()
   }
 
-  async function runSyncQueue(
-    recordsToSync = records,
-    tasksToSync = syncTasks,
-    recordId = selectedId,
-    triggeredByMutation = false,
-  ) {
-    if (mutationInProgressRef.current && !triggeredByMutation) {
-      setSyncMessage('目前正在處理資料，完成後會接續同步。')
+  async function runSyncQueue(retryFailed = false) {
+    if (syncPromiseRef.current) {
       return
     }
 
-    if (syncPromiseRef.current) {
-      await syncPromiseRef.current
-      return
-    }
+    const tasksToSync = retryFailed ? retryFailedSyncTasks() : loadSyncQueue()
 
     if (tasksToSync.length === 0) {
       setSyncMessage('目前沒有待同步資料。')
@@ -801,30 +811,20 @@ function App() {
 
     const syncPromise = (async () => {
       setIsSyncing(true)
-      const result = await processSyncQueue(recordsToSync, tasksToSync, {
+      const result = await processSyncQueue({
         environment: getSyncEnvironment(),
         repairRecordService,
+        localRepairRecordService,
         attachmentStorageService,
+        onProgress(nextRecords, nextTasks) {
+          setRecords(nextRecords)
+          setSyncTasks(nextTasks)
+        },
       })
 
       setRecords(result.records)
       setSyncTasks(result.tasks)
       setSyncMessage(result.message)
-      await localRepairRecordService.replaceAll(result.records)
-
-      if (recordId) {
-        const nextSelectedRecord = result.records.find((record) => record.id === recordId)
-
-        if (nextSelectedRecord) {
-          setForm(toRepairFormValues(nextSelectedRecord))
-        }
-      }
-
-      setMessage(
-        result.tasks.length > 0
-          ? `同步尚未完成，資料已保留在此設備。${result.message}`
-          : '維修紀錄已儲存並自動同步至雲端。',
-      )
     })()
 
     syncPromiseRef.current = syncPromise
@@ -1513,7 +1513,7 @@ function App() {
                 {syncSummary.failed > 0 ? (
                   <p className="mini-notice warning">同步未完成，請確認提示內容後再次同步。</p>
                 ) : null}
-                <button type="button" className="secondary-action" disabled={operationInProgress} onClick={() => void runSyncQueue()}>
+                <button type="button" className="secondary-action" disabled={isSyncing} onClick={() => void runSyncQueue(true)}>
                   {isSyncing ? '同步中…' : syncSummary.failed > 0 ? '再次同步' : '立即同步'}
                 </button>
                 <ul className="sync-list">

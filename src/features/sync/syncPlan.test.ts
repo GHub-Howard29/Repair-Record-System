@@ -4,6 +4,7 @@ import type { SyncTask } from './syncQueue'
 
 const task = (kind: SyncTask['kind'], status: SyncTask['status']): SyncTask => ({
   id: `${kind}-${status}`,
+  operationId: `${kind}-${status}-operation`,
   kind,
   recordId: 'record-1',
   status,
@@ -24,6 +25,12 @@ describe('同步狀態清單', () => {
     ])).toEqual([
       { target: 'firestore', title: '維修單資料同步至雲端資料庫', status: 'pending', count: 1 },
       { target: 'drive', title: '維修照片上傳／刪除同步至 Google 雲端硬碟', status: 'local', count: 2 },
+    ])
+  })
+
+  it('背景處理期間顯示同步中', () => {
+    expect(buildSyncPlan([task('attachment', 'syncing')])).toEqual([
+      { target: 'drive', title: '維修照片上傳至 Google 雲端硬碟', status: 'syncing', count: 1 },
     ])
   })
 })

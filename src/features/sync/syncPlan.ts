@@ -47,6 +47,10 @@ function getGroupStatus(tasks: SyncTask[]): SyncStatus {
     return 'failed'
   }
 
+  if (tasks.some((task) => task.status === 'syncing')) {
+    return 'syncing'
+  }
+
   if (tasks.some((task) => task.status === 'local')) {
     return 'local'
   }
