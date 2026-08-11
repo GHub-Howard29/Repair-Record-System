@@ -198,6 +198,8 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isScrollToTopVisible, setIsScrollToTopVisible] = useState(() => window.scrollY > 0)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
+  const [isMutating, setIsMutating] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [message, setMessage] = useState(
     isGoogleAuthConfigured() ? '請先使用新增按鈕後開始作業。' : '尚未設定 Google Client ID，目前使用本機開發登入。',
   )
@@ -210,7 +212,10 @@ function App() {
     isGoogleAuthConfigured() ? '正式 Google OAuth 已設定。' : '請在 .env 設定 VITE_GOOGLE_CLIENT_ID 啟用正式登入。',
   )
   const googleButtonRef = useRef<HTMLDivElement | null>(null)
+  const mutationInProgressRef = useRef(false)
+  const syncPromiseRef = useRef<Promise<void> | null>(null)
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
+  const operationInProgress = isMutating || isSyncing
   const serialNumberError = getSerialNumberError(form.serialNumber)
   const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
   const attachmentList = selectedRecord ? selectedRecord.attachments : draftAttachments
@@ -520,7 +525,28 @@ function App() {
     fields[currentIndex + 1]?.focus()
   }
 
+  async function runMutation(action: () => Promise<void>, onBusy: () => void) {
+    if (mutationInProgressRef.current || syncPromiseRef.current) {
+      onBusy()
+      return
+    }
+
+    mutationInProgressRef.current = true
+    setIsMutating(true)
+
+    try {
+      await action()
+    } finally {
+      mutationInProgressRef.current = false
+      setIsMutating(false)
+    }
+  }
+
   async function saveRecord() {
+    await runMutation(saveRecordOperation, () => setMessage('目前正在儲存或同步，請等待完成。'))
+  }
+
+  async function saveRecordOperation() {
     if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setMessage('已完成案件不可修改，請建立新紀錄補充說明。')
       return
@@ -568,6 +594,13 @@ function App() {
   }
 
   async function addAttachment(files: FileList | null) {
+    await runMutation(
+      () => addAttachmentOperation(files),
+      () => setAttachmentMessage('目前正在處理或同步附件，請等待完成。'),
+    )
+  }
+
+  async function addAttachmentOperation(files: FileList | null) {
     if (!files?.[0]) {
       return
     }
@@ -608,6 +641,13 @@ function App() {
   }
 
   async function replaceAttachment(attachmentId: string, files: FileList | null) {
+    await runMutation(
+      () => replaceAttachmentOperation(attachmentId, files),
+      () => setAttachmentMessage('目前正在處理或同步附件，請等待完成。'),
+    )
+  }
+
+  async function replaceAttachmentOperation(attachmentId: string, files: FileList | null) {
     if (!files?.[0]) {
       return
     }
@@ -665,6 +705,13 @@ function App() {
   }
 
   async function removeAttachment(attachmentId: string) {
+    await runMutation(
+      () => removeAttachmentOperation(attachmentId),
+      () => setAttachmentMessage('目前正在處理或同步附件，請等待完成。'),
+    )
+  }
+
+  async function removeAttachmentOperation(attachmentId: string) {
     if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setAttachmentMessage('已完成案件不可刪除附件。')
       return
@@ -728,39 +775,68 @@ function App() {
     setSelectedId(record.id)
     setForm(toRepairFormValues(record))
     setMessage('已儲存到本機，正在自動同步雲端。')
-    await runSyncQueue(nextRecords, nextTasks, record.id)
+    await runSyncQueue(nextRecords, nextTasks, record.id, true)
   }
 
-  async function runSyncQueue(recordsToSync = records, tasksToSync = syncTasks, recordId = selectedId) {
+  async function runSyncQueue(
+    recordsToSync = records,
+    tasksToSync = syncTasks,
+    recordId = selectedId,
+    triggeredByMutation = false,
+  ) {
+    if (mutationInProgressRef.current && !triggeredByMutation) {
+      setSyncMessage('目前正在處理資料，完成後會接續同步。')
+      return
+    }
+
+    if (syncPromiseRef.current) {
+      await syncPromiseRef.current
+      return
+    }
+
     if (tasksToSync.length === 0) {
       setSyncMessage('目前沒有待同步資料。')
       return
     }
 
-    const result = await processSyncQueue(recordsToSync, tasksToSync, {
-      environment: getSyncEnvironment(),
-      repairRecordService,
-      attachmentStorageService,
-    })
+    const syncPromise = (async () => {
+      setIsSyncing(true)
+      const result = await processSyncQueue(recordsToSync, tasksToSync, {
+        environment: getSyncEnvironment(),
+        repairRecordService,
+        attachmentStorageService,
+      })
 
-    setRecords(result.records)
-    setSyncTasks(result.tasks)
-    setSyncMessage(result.message)
-    await localRepairRecordService.replaceAll(result.records)
+      setRecords(result.records)
+      setSyncTasks(result.tasks)
+      setSyncMessage(result.message)
+      await localRepairRecordService.replaceAll(result.records)
 
-    if (recordId) {
-      const nextSelectedRecord = result.records.find((record) => record.id === recordId)
+      if (recordId) {
+        const nextSelectedRecord = result.records.find((record) => record.id === recordId)
 
-      if (nextSelectedRecord) {
-        setForm(toRepairFormValues(nextSelectedRecord))
+        if (nextSelectedRecord) {
+          setForm(toRepairFormValues(nextSelectedRecord))
+        }
       }
-    }
 
-    setMessage(
-      result.tasks.length > 0
-        ? `同步尚未完成，資料已保留在此設備。${result.message}`
-        : '維修紀錄已儲存並自動同步至雲端。',
-    )
+      setMessage(
+        result.tasks.length > 0
+          ? `同步尚未完成，資料已保留在此設備。${result.message}`
+          : '維修紀錄已儲存並自動同步至雲端。',
+      )
+    })()
+
+    syncPromiseRef.current = syncPromise
+
+    try {
+      await syncPromise
+    } finally {
+      if (syncPromiseRef.current === syncPromise) {
+        syncPromiseRef.current = null
+      }
+      setIsSyncing(false)
+    }
   }
 
   async function exportRecordPdf(record: RepairRecord) {
@@ -1043,8 +1119,8 @@ function App() {
               <button type="button" className="ghost-action" onClick={startNewRecord}>
                 新增
               </button>
-              <button type="button" className="primary-action" onClick={() => void saveRecord()} disabled={completed}>
-                儲存
+              <button type="button" className="primary-action" onClick={() => void saveRecord()} disabled={completed || operationInProgress}>
+                {operationInProgress ? '處理中…' : '儲存'}
               </button>
             </div>
           </div>
@@ -1277,7 +1353,7 @@ function App() {
             <p className={attachmentMessage.includes('不可') || attachmentMessage.includes('僅支援') ? 'mini-notice warning' : 'mini-notice'}>
               {attachmentMessage}
             </p>
-            <fieldset className="attachment-description" disabled={completed}>
+            <fieldset className="attachment-description" disabled={completed || operationInProgress}>
               <legend>照片說明</legend>
               <div className="option-grid">
                 {ATTACHMENT_DESCRIPTIONS.map((description) => (
@@ -1302,25 +1378,25 @@ function App() {
               ) : null}
             </fieldset>
             <div className="attachment-file-actions">
-              <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+              <label className={completed || operationInProgress || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
                 拍照新增
                 <input
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  disabled={completed || attachmentList.length >= 5}
+                  disabled={completed || operationInProgress || attachmentList.length >= 5}
                   onChange={(event) => {
                     void addAttachment(event.target.files)
                     event.currentTarget.value = ''
                   }}
                 />
               </label>
-              <label className={completed || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+              <label className={completed || operationInProgress || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
                 從裝置選擇
                 <input
                   type="file"
                   accept="image/*"
-                  disabled={completed || attachmentList.length >= 5}
+                  disabled={completed || operationInProgress || attachmentList.length >= 5}
                   onChange={(event) => {
                     void addAttachment(event.target.files)
                     event.currentTarget.value = ''
@@ -1342,32 +1418,32 @@ function App() {
                       {(attachment.size / 1024).toFixed(0)} KB · {getAttachmentSyncStatusLabel(attachment)}
                     </small>
                     <div className="attachment-actions">
-                      <label className={completed ? 'text-action disabled' : 'text-action'}>
+                      <label className={completed || operationInProgress ? 'text-action disabled' : 'text-action'}>
                         拍照更換
                         <input
                           type="file"
                           accept="image/*"
                           capture="environment"
-                          disabled={completed}
+                          disabled={completed || operationInProgress}
                           onChange={(event) => {
                             void replaceAttachment(attachment.id, event.target.files)
                             event.currentTarget.value = ''
                           }}
                         />
                       </label>
-                      <label className={completed ? 'text-action disabled' : 'text-action'}>
+                      <label className={completed || operationInProgress ? 'text-action disabled' : 'text-action'}>
                         選擇更換
                         <input
                           type="file"
                           accept="image/*"
-                          disabled={completed}
+                          disabled={completed || operationInProgress}
                           onChange={(event) => {
                             void replaceAttachment(attachment.id, event.target.files)
                             event.currentTarget.value = ''
                           }}
                         />
                       </label>
-                      <button type="button" className="text-action danger" disabled={completed} onClick={() => removeAttachment(attachment.id)}>
+                      <button type="button" className="text-action danger" disabled={completed || operationInProgress} onClick={() => void removeAttachment(attachment.id)}>
                         刪除
                       </button>
                     </div>
@@ -1437,8 +1513,8 @@ function App() {
                 {syncSummary.failed > 0 ? (
                   <p className="mini-notice warning">同步未完成，請確認提示內容後再次同步。</p>
                 ) : null}
-                <button type="button" className="secondary-action" onClick={() => void runSyncQueue()}>
-                  {syncSummary.failed > 0 ? '再次同步' : '立即同步'}
+                <button type="button" className="secondary-action" disabled={operationInProgress} onClick={() => void runSyncQueue()}>
+                  {isSyncing ? '同步中…' : syncSummary.failed > 0 ? '再次同步' : '立即同步'}
                 </button>
                 <ul className="sync-list">
                   {syncPlan.map((item) => (

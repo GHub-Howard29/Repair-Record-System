@@ -1,9 +1,14 @@
 import { initializeApp } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
+import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
+import { buildAttachmentUploadKey, buildExistingUploadQuery } from './attachmentUploadIdempotency.js'
 
 initializeApp()
+
+const firestore = getFirestore()
 
 const driveFolderId = defineSecret('GOOGLE_DRIVE_FOLDER_ID')
 const driveOauthClientId = defineSecret('GOOGLE_DRIVE_OAUTH_CLIENT_ID')
@@ -12,6 +17,8 @@ const driveOauthRefreshToken = defineSecret('GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN')
 const allowedEmails = defineSecret('ALLOWED_EMAILS')
 
 const imageMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const uploadLeaseDurationMs = 70_000
+const uploadWaitDurationMs = 15_000
 
 export const uploadRepairAttachment = onCall(
   {
@@ -38,6 +45,25 @@ export const uploadRepairAttachment = onCall(
 
     const base64 = attachment.previewUrl.split(',')[1]
     const buffer = Buffer.from(base64, 'base64')
+    const uploadKey = buildAttachmentUploadKey(recordId, attachment, buffer)
+    const uploadStateRef = firestore.collection('attachmentUploadStates').doc(uploadKey)
+    const ownerToken = randomUUID()
+    const claim = await claimAttachmentUpload(uploadStateRef, ownerToken, recordId, attachment.id)
+
+    if (claim.completed) {
+      return toUploadResponse(attachment.id, claim)
+    }
+
+    if (!claim.owned) {
+      const completedUpload = await waitForAttachmentUpload(uploadStateRef)
+
+      if (completedUpload) {
+        return toUploadResponse(attachment.id, completedUpload)
+      }
+
+      throw new HttpsError('unavailable', '相同附件正在上傳，請稍後再次同步。')
+    }
+
     const { google } = await import('googleapis')
     const auth = new google.auth.OAuth2(
       driveOauthClientId.value(),
@@ -48,18 +74,34 @@ export const uploadRepairAttachment = onCall(
     let uploaded
 
     try {
-      uploaded = await drive.files.create({
-        requestBody: {
-          name: `${recordId}-${attachment.fileName}`,
-          parents: [driveFolderId.value()],
-        },
-        media: {
-          mimeType: attachment.mimeType,
-          body: Readable.from(buffer),
-        },
-        fields: 'id,webViewLink',
+      const existing = await drive.files.list({
+        q: buildExistingUploadQuery(driveFolderId.value(), uploadKey),
+        spaces: 'drive',
+        fields: 'files(id,webViewLink)',
+        pageSize: 1,
       })
+      const existingFile = existing.data.files?.[0]
+
+      uploaded = existingFile
+        ? { data: existingFile }
+        : await drive.files.create({
+            requestBody: {
+              name: `${recordId}-${attachment.fileName}`,
+              parents: [driveFolderId.value()],
+              appProperties: {
+                repairUploadKey: uploadKey,
+                repairRecordId: recordId,
+                repairAttachmentId: attachment.id,
+              },
+            },
+            media: {
+              mimeType: attachment.mimeType,
+              body: Readable.from(buffer),
+            },
+            fields: 'id,webViewLink',
+          })
     } catch (error) {
+      await failAttachmentUpload(uploadStateRef, ownerToken)
       console.error('Google Drive upload failed', {
         code: error?.code,
         message: error?.message,
@@ -69,14 +111,16 @@ export const uploadRepairAttachment = onCall(
     }
 
     if (!uploaded.data.id) {
+      await failAttachmentUpload(uploadStateRef, ownerToken)
       throw new HttpsError('internal', 'Google Drive 未回傳檔案 ID。')
     }
 
-    return {
-      attachmentId: attachment.id,
+    await completeAttachmentUpload(uploadStateRef, ownerToken, uploaded.data.id, uploaded.data.webViewLink ?? '')
+
+    return toUploadResponse(attachment.id, {
       driveFileId: uploaded.data.id,
       driveUrl: uploaded.data.webViewLink ?? '',
-    }
+    })
   },
 )
 
@@ -199,6 +243,105 @@ export const deleteRepairAttachment = onCall(
   },
 )
 
+async function claimAttachmentUpload(uploadStateRef, ownerToken, recordId, attachmentId) {
+  return firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(uploadStateRef)
+    const state = snapshot.data()
+
+    if (typeof state?.driveFileId === 'string') {
+      return {
+        completed: true,
+        driveFileId: state.driveFileId,
+        driveUrl: typeof state.driveUrl === 'string' ? state.driveUrl : '',
+      }
+    }
+
+    if (state?.status === 'uploading' && Number(state.leaseExpiresAt) > Date.now()) {
+      return { completed: false, owned: false }
+    }
+
+    transaction.set(uploadStateRef, {
+      status: 'uploading',
+      ownerToken,
+      recordId,
+      attachmentId,
+      leaseExpiresAt: Date.now() + uploadLeaseDurationMs,
+      updatedAt: new Date().toISOString(),
+    })
+
+    return { completed: false, owned: true }
+  })
+}
+
+async function waitForAttachmentUpload(uploadStateRef) {
+  const deadline = Date.now() + uploadWaitDurationMs
+
+  while (Date.now() < deadline) {
+    const state = (await uploadStateRef.get()).data()
+
+    if (typeof state?.driveFileId === 'string') {
+      return {
+        driveFileId: state.driveFileId,
+        driveUrl: typeof state.driveUrl === 'string' ? state.driveUrl : '',
+      }
+    }
+
+    if (state?.status === 'failed') {
+      return undefined
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+
+  return undefined
+}
+
+async function completeAttachmentUpload(uploadStateRef, ownerToken, driveFileId, driveUrl) {
+  await firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(uploadStateRef)
+
+    if (snapshot.data()?.ownerToken !== ownerToken) {
+      return
+    }
+
+    transaction.set(uploadStateRef, {
+      status: 'completed',
+      driveFileId,
+      driveUrl,
+      leaseExpiresAt: 0,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true })
+  })
+}
+
+async function failAttachmentUpload(uploadStateRef, ownerToken) {
+  try {
+    await firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(uploadStateRef)
+
+      if (snapshot.data()?.ownerToken !== ownerToken) {
+        return
+      }
+
+      transaction.set(uploadStateRef, {
+        status: 'failed',
+        leaseExpiresAt: 0,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true })
+    })
+  } catch (error) {
+    console.error('Attachment upload state update failed', { message: error?.message })
+  }
+}
+
+function toUploadResponse(attachmentId, upload) {
+  return {
+    attachmentId,
+    driveFileId: upload.driveFileId,
+    driveUrl: upload.driveUrl ?? '',
+  }
+}
+
 function validateUpload(recordId, attachment) {
   if (typeof recordId !== 'string' || !recordId.trim()) {
     throw new HttpsError('invalid-argument', '缺少維修紀錄 ID。')
@@ -206,6 +349,17 @@ function validateUpload(recordId, attachment) {
 
   if (!attachment || typeof attachment !== 'object') {
     throw new HttpsError('invalid-argument', '缺少附件資料。')
+  }
+
+  if (
+    typeof attachment.id !== 'string' ||
+    !attachment.id.trim() ||
+    typeof attachment.createdAt !== 'string' ||
+    !attachment.createdAt.trim() ||
+    typeof attachment.fileName !== 'string' ||
+    !attachment.fileName.trim()
+  ) {
+    throw new HttpsError('invalid-argument', '附件識別資料不正確。')
   }
 
   if (!imageMimeTypes.has(attachment.mimeType) || typeof attachment.previewUrl !== 'string') {

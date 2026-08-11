@@ -7,7 +7,8 @@
   },
   "main": "index.js",
   "scripts": {
-    "lint": "node --check index.js && node --check tools/create-drive-refresh-token.mjs",
+    "lint": "node --check index.js && node --check attachmentUploadIdempotency.js && node --check tools/create-drive-refresh-token.mjs",
+    "test": "node --test",
     "runtime:check": "node -e \"if (process.versions.node.split('.')[0] !== '22') { console.error('需要 Node.js 22；目前是 ' + process.version); process.exit(1) }\"",
     "drive:token": "node tools/create-drive-refresh-token.mjs"
   },
