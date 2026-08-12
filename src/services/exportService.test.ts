@@ -3,6 +3,7 @@ import {
   buildChargeExportRows,
   buildRepairExportRows,
   buildRepairPrintHtml,
+  configureRepairExportLayout,
   getPdfPageSlices,
   getPdfExportTitle,
   normalizeExcelText,
@@ -53,6 +54,22 @@ describe('Excel 匯出資料', () => {
     const normalizedText = normalizeExcelText('第一行備註\r\n第二行備註\r第三行備註')
 
     expect(normalizedText).toBe('第一行備註 第二行備註 第三行備註')
+  })
+
+  it('只將保固期內標示為非粗體紅字', async () => {
+    const XLSX = await import('xlsx-js-style')
+    const rows = [
+      buildRepairExportRows([{ ...record, shippedDate: '2026-06-17' }])[0],
+      buildRepairExportRows([{ ...record, shippedDate: '2024-01-01' }])[0],
+      buildRepairExportRows([{ ...record, shippedDate: '' }])[0],
+    ]
+    const sheet = XLSX.utils.aoa_to_sheet([[], ...rows])
+
+    configureRepairExportLayout(XLSX, sheet, rows)
+
+    expect(sheet.I2.s?.font).toEqual({ color: { rgb: 'FF0000' }, bold: false })
+    expect(sheet.I3.s?.font).toBeUndefined()
+    expect(sheet.I4.s?.font).toBeUndefined()
   })
 })
 

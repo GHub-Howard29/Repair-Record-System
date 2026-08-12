@@ -317,6 +317,7 @@ const THIN_CELL_BORDER = {
 
 const REPAIR_CONTENT_COLUMN = 10
 const NOTE_COLUMN = 11
+const WARRANTY_STATUS_COLUMN = 8
 
 export function buildRepairExportRows(records: RepairRecord[]): Array<Array<string | number>> {
   return records.map((record) => [
@@ -345,7 +346,7 @@ export function buildChargeExportRows(records: RepairRecord[]): Array<Array<stri
   )
 }
 
-function configureRepairExportLayout(
+export function configureRepairExportLayout(
   XLSX: typeof import('xlsx-js-style'),
   sheet: import('xlsx-js-style').WorkSheet,
   rows: Array<Array<string | number>>,
@@ -393,6 +394,9 @@ function configureRepairExportLayout(
           wrapText: isLongTextColumn,
         },
         border: THIN_CELL_BORDER,
+        ...(column === WARRANTY_STATUS_COLUMN && cell.v === '保固期內'
+          ? { font: { color: { rgb: 'FF0000' }, bold: false } }
+          : {}),
       }
     }
 
