@@ -54,6 +54,14 @@ import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS 
 import { filterRepairRecords, hasRecordSearchFilters } from './features/search/recordSearch'
 import { getPurchaseTypeLabel } from './features/repair/purchaseType'
 import { getWarrantyStatus, isValidIsoDate } from './features/warranty/warranty'
+import {
+  isInstallPromptDismissed,
+  isIosDevice,
+  isPwaStandalone,
+  PWA_INSTALL_DISMISS_STORAGE_KEY,
+  PWA_INSTALL_INSTALLED_STORAGE_KEY,
+  type BeforeInstallPromptEvent,
+} from './features/pwa/installPrompt'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
 import { googleDriveAttachmentService } from './services/googleDriveAttachmentService'
 import { firestoreRepairRecordService, subscribeToRepairRecords } from './services/firestoreRepairRecordService'
@@ -183,6 +191,18 @@ function DateField({
 }
 
 function App() {
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null)
+  const [showInstallPrompt, setShowInstallPrompt] = useState(() => {
+    const standaloneMedia = window.matchMedia('(display-mode: standalone)').matches
+    const navigatorStandalone = (navigator as Navigator & { standalone?: boolean }).standalone
+
+    return localStorage.getItem(PWA_INSTALL_INSTALLED_STORAGE_KEY) !== 'true'
+      && !isPwaStandalone(standaloneMedia, navigatorStandalone)
+      && !isInstallPromptDismissed(localStorage.getItem(PWA_INSTALL_DISMISS_STORAGE_KEY))
+  })
+  const [isIosInstall] = useState(() =>
+    isIosDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints),
+  )
   const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser())
   const [records, setRecords] = useState<RepairRecord[]>([])
   const [syncTasks, setSyncTasks] = useState<SyncTask[]>(() => loadSyncQueue())
@@ -408,6 +428,42 @@ function App() {
       (error) => setSyncMessage(`即時同步失敗：${error.message}`),
     )
   }, [selectedId, user])
+
+  useEffect(() => {
+    const standaloneMedia = window.matchMedia('(display-mode: standalone)')
+    const navigatorStandalone = (navigator as Navigator & { standalone?: boolean }).standalone
+    const dismissed = isInstallPromptDismissed(localStorage.getItem(PWA_INSTALL_DISMISS_STORAGE_KEY))
+    const installed = localStorage.getItem(PWA_INSTALL_INSTALLED_STORAGE_KEY) === 'true'
+    if (installed || isPwaStandalone(standaloneMedia.matches, navigatorStandalone) || dismissed) {
+      return
+    }
+
+    const captureInstallPrompt = (event: Event) => {
+      event.preventDefault()
+      setInstallPromptEvent(event as BeforeInstallPromptEvent)
+      setShowInstallPrompt(true)
+    }
+    const hideInstalledPrompt = () => {
+      localStorage.setItem(PWA_INSTALL_INSTALLED_STORAGE_KEY, 'true')
+      setInstallPromptEvent(null)
+      setShowInstallPrompt(false)
+    }
+    const updateStandaloneMode = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        hideInstalledPrompt()
+      }
+    }
+
+    window.addEventListener('beforeinstallprompt', captureInstallPrompt)
+    window.addEventListener('appinstalled', hideInstalledPrompt)
+    standaloneMedia.addEventListener('change', updateStandaloneMode)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', captureInstallPrompt)
+      window.removeEventListener('appinstalled', hideInstalledPrompt)
+      standaloneMedia.removeEventListener('change', updateStandaloneMode)
+    }
+  }, [])
 
   useEffect(() => {
     const updateScrollToTopVisibility = () => setIsScrollToTopVisible(window.scrollY > 0)
@@ -870,6 +926,27 @@ function App() {
     }
   }
 
+  async function installPwa() {
+    if (!installPromptEvent) {
+      return
+    }
+
+    await installPromptEvent.prompt()
+    const choice = await installPromptEvent.userChoice
+
+    setInstallPromptEvent(null)
+
+    if (choice.outcome === 'accepted') {
+      localStorage.setItem(PWA_INSTALL_INSTALLED_STORAGE_KEY, 'true')
+      setShowInstallPrompt(false)
+    }
+  }
+
+  function dismissInstallPrompt() {
+    localStorage.setItem(PWA_INSTALL_DISMISS_STORAGE_KEY, String(Date.now()))
+    setShowInstallPrompt(false)
+  }
+
   function handleLogout() {
     clearStoredAuthUser()
     setUser(null)
@@ -919,6 +996,31 @@ function App() {
           </button>
         </div>
       </header>
+
+      {showInstallPrompt ? (
+        <section className="pwa-install-prompt" aria-label="安裝維修紀錄應用程式">
+          <div className="pwa-install-copy">
+            <strong>將維修紀錄安裝到手機</strong>
+            <p>
+              {installPromptEvent
+                ? '安裝後可從手機主畫面直接開啟，使用方式如同一般 APP。'
+                : isIosInstall
+                  ? '請在 Safari 點擊分享按鈕，再選擇「加入主畫面」。'
+                  : '請開啟瀏覽器功能選單，選擇「安裝應用程式」或「加入主畫面」。'}
+            </p>
+          </div>
+          <div className="pwa-install-actions">
+            {installPromptEvent ? (
+              <button type="button" className="primary-action" onClick={() => void installPwa()}>
+                安裝維修紀錄 APP
+              </button>
+            ) : null}
+            <button type="button" className="ghost-action" onClick={dismissInstallPrompt}>
+              稍後提醒
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {isMobileMenuOpen ? <button type="button" className="mobile-menu-backdrop" aria-label="關閉功能選單" onClick={() => setIsMobileMenuOpen(false)} /> : null}
       <nav className={isMobileMenuOpen ? 'mobile-menu open' : 'mobile-menu'} aria-label="功能選單">
