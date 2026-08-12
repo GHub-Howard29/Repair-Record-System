@@ -51,6 +51,7 @@ import {
 } from './features/attachment/attachmentRules'
 import { runWithMinimumLock } from './features/attachment/attachmentDeleteLock'
 import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS } from './features/repair/repairOptions'
+import { filterRepairRecords, hasRecordSearchFilters } from './features/search/recordSearch'
 import { getPurchaseTypeLabel } from './features/repair/purchaseType'
 import { getWarrantyStatus, isValidIsoDate } from './features/warranty/warranty'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
@@ -196,7 +197,7 @@ function App() {
   const [searchText, setSearchText] = useState('')
   const [startDateFilter, setStartDateFilter] = useState('')
   const [endDateFilter, setEndDateFilter] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [faultPartFilter, setFaultPartFilter] = useState('')
   const [recordStatusFilter, setRecordStatusFilter] = useState<'active' | 'completed' | ''>('active')
   const [isStatusFilterExplicit, setIsStatusFilterExplicit] = useState(false)
   const [mobileView, setMobileView] = useState<'records' | 'editor' | 'details'>('records')
@@ -263,7 +264,15 @@ function App() {
     () => Array.from(new Set([...DEFAULT_FAULT_PARTS, ...formFaultParts])),
     [formFaultParts],
   )
-  const hasRecordSearch = Boolean(searchText.trim() || startDateFilter || endDateFilter || categoryFilter)
+  const recordSearchFilters = useMemo(() => ({
+    searchText,
+    startDate: startDateFilter,
+    endDate: endDateFilter,
+    faultPart: faultPartFilter,
+    status: recordStatusFilter,
+    statusExplicit: isStatusFilterExplicit,
+  } as const), [endDateFilter, faultPartFilter, isStatusFilterExplicit, recordStatusFilter, searchText, startDateFilter])
+  const hasRecordSearch = hasRecordSearchFilters(recordSearchFilters)
   const serialHistory = useMemo(
     () => {
       const now = Date.now()
@@ -297,35 +306,10 @@ function App() {
   )
   const syncSummary = useMemo(() => summarizeSyncQueue(syncTasks), [syncTasks])
   const syncPlan = useMemo(() => buildSyncPlan(syncTasks), [syncTasks])
-  const filteredRecords = useMemo(() => {
-    const normalizedSearch = searchText.trim().toLowerCase()
-
-    return records.filter((record) => {
-      const matchesText =
-        !normalizedSearch ||
-        record.customerName.toLowerCase().includes(normalizedSearch) ||
-        record.serialNumber.toLowerCase().includes(normalizedSearch) ||
-        record.returnLocation.toLowerCase().includes(normalizedSearch)
-      const matchesStartDate = !startDateFilter || record.receivedDate >= startDateFilter
-      const matchesEndDate = !endDateFilter || record.receivedDate <= endDateFilter
-      const matchesCategory = !categoryFilter || record.faultCategory === categoryFilter
-      const matchesStatus =
-        (hasRecordSearch && !isStatusFilterExplicit) ||
-        !recordStatusFilter ||
-        (recordStatusFilter === 'active' ? !isRepairCompleted(record) : isRepairCompleted(record))
-
-      return matchesText && matchesStartDate && matchesEndDate && matchesCategory && matchesStatus
-    })
-  }, [
-    categoryFilter,
-    endDateFilter,
-    hasRecordSearch,
-    isStatusFilterExplicit,
-    recordStatusFilter,
-    records,
-    searchText,
-    startDateFilter,
-  ])
+  const filteredRecords = useMemo(
+    () => filterRepairRecords(records, recordSearchFilters),
+    [recordSearchFilters, records],
+  )
 
   useEffect(() => {
     let ignore = false
@@ -1014,18 +998,18 @@ function App() {
               />
             </label>
             <label>
-              故障分類
+              更換零件
               <select
-                value={categoryFilter}
+                value={faultPartFilter}
                 onChange={(event) => {
-                  setCategoryFilter(event.target.value)
+                  setFaultPartFilter(event.target.value)
                   setIsStatusFilterExplicit(false)
                 }}
               >
                 <option value="">全部</option>
-                {DEFAULT_FAULT_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
+                {DEFAULT_FAULT_PARTS.map((part) => (
+                  <option key={part} value={part}>
+                    {part}
                   </option>
                 ))}
               </select>
