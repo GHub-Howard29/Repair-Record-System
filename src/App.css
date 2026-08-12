@@ -507,6 +507,29 @@ body,
   gap: 16px;
 }
 
+@media (min-width: 1121px) {
+  .app-shell {
+    display: flex;
+    height: 100svh;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .workspace-grid {
+    min-height: 0;
+    flex: 1;
+  }
+
+  .record-list,
+  .editor-panel {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
 @media (min-width: 721px) {
   .desktop-history-section {
     order: 1;
