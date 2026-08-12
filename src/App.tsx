@@ -998,28 +998,52 @@ function App() {
       </header>
 
       {showInstallPrompt ? (
-        <section className="pwa-install-prompt" aria-label="安裝維修紀錄應用程式">
-          <div className="pwa-install-copy">
-            <strong>將維修紀錄安裝到手機</strong>
-            <p>
-              {installPromptEvent
-                ? '安裝後可從手機主畫面直接開啟，使用方式如同一般 APP。'
-                : isIosInstall
-                  ? '請在 Safari 點擊分享按鈕，再選擇「加入主畫面」。'
-                  : '請開啟瀏覽器功能選單，選擇「安裝應用程式」或「加入主畫面」。'}
-            </p>
-          </div>
-          <div className="pwa-install-actions">
-            {installPromptEvent ? (
-              <button type="button" className="primary-action" onClick={() => void installPwa()}>
-                安裝維修紀錄 APP
-              </button>
-            ) : null}
-            <button type="button" className="ghost-action" onClick={dismissInstallPrompt}>
-              稍後提醒
+        <div className="pwa-install-overlay">
+          <button
+            type="button"
+            className="pwa-install-backdrop"
+            aria-label="關閉安裝提示"
+            onClick={dismissInstallPrompt}
+          />
+          <section
+            className="pwa-install-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pwa-install-title"
+          >
+            <button
+              type="button"
+              className="pwa-install-close"
+              aria-label="關閉安裝提示"
+              onClick={dismissInstallPrompt}
+            >
+              ×
             </button>
-          </div>
-        </section>
+            <div className="pwa-install-heading">
+              <img src={`${import.meta.env.BASE_URL}pwa-icon-192.png`} alt="" />
+              <div className="pwa-install-copy">
+                <h2 id="pwa-install-title">安裝維修紀錄 APP</h2>
+                <p>
+                  {installPromptEvent
+                    ? '安裝後可從手機主畫面直接開啟，使用方式如同一般 APP。'
+                    : isIosInstall
+                      ? '請在 Safari 點擊分享按鈕，再選擇「加入主畫面」。'
+                      : '請開啟瀏覽器功能選單，選擇「安裝應用程式」或「加入主畫面」。'}
+                </p>
+              </div>
+            </div>
+            <div className="pwa-install-actions">
+              {installPromptEvent ? (
+                <button type="button" className="primary-action" onClick={() => void installPwa()}>
+                  安裝維修紀錄 APP
+                </button>
+              ) : null}
+              <button type="button" className="pwa-install-later" onClick={dismissInstallPrompt}>
+                稍後提醒
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {isMobileMenuOpen ? <button type="button" className="mobile-menu-backdrop" aria-label="關閉功能選單" onClick={() => setIsMobileMenuOpen(false)} /> : null}
