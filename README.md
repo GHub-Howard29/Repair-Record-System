@@ -30,7 +30,7 @@ npm install
 開啟：
 
 ```text
-http://127.0.0.1:5173/Repair-Record-System/
+http://127.0.0.1:5173/
 ```
 
 ## 環境變數
@@ -62,19 +62,19 @@ http://127.0.0.1:5173
 http://localhost:5173
 ```
 
-GitHub Pages 專案頁部署時，Google OAuth 的 Authorized JavaScript origins 需加入帳號網域，不包含 repo 路徑：
+Vercel 正式部署時，Google OAuth 的 Authorized JavaScript origins 需加入正式網域：
 
 ```text
-https://你的GitHub帳號.github.io
+https://repair-record-system.vercel.app
 ```
 
-本專案固定部署到 GitHub Pages 專案頁，因此 `vite.config.ts` 已設定：
+本專案部署於 Vercel 網域根目錄，因此 `vite.config.ts` 使用：
 
 ```ts
-base: '/Repair-Record-System/'
+base: '/'
 ```
 
-這是專案設定，不需要每次部署手動設定。
+Vercel 專案已設定所需的 `VITE_*` 環境變數。GitHub 保留程式碼；push 到已連結的分支後，由 Vercel 自動執行 `npm run build` 並發布 `dist`。
 
 ## 常用指令
 
@@ -84,7 +84,7 @@ npm run build
 npm run deploy:check
 ```
 
-GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `main` 後會自動 lint、build 並部署 `dist`。
+GitHub Pages workflow `.github/workflows/deploy-pages.yml` 僅保留手動執行，push 到 `main` 不再發布 Pages。
 
 ## 文件索引
 
@@ -93,11 +93,11 @@ GitHub Pages 部署由 `.github/workflows/deploy-pages.yml` 負責。push 到 `m
 - `docs/03_開發 Roadmap.md`：Phase 1 到 Phase 7 開發順序。
 - `docs/04_工作規範.md`：後續開發規範。
 - `docs/05_交接紀錄.md`：目前進度、未完成事項與下一步。
-- `docs/06_外部資源連結設定.md`：Google OAuth、GitHub Pages、Firestore、Google Drive 與部署資源設定。
+- `docs/06_外部資源連結設定.md`：Google OAuth、Vercel、Firestore、Google Drive 與部署資源設定。
 - `docs/07_專案現況.md`：僅記錄目前已完成能力與後續待辦的最新快照。
 - `src/agent.ts`：給後續 agent/開發者快速掌握專案規則的入口。
 
 ## 下一步
 
-1. 確認 GitHub Actions 工作流程使用的 Secrets 名稱與正式部署環境設定一致。
+1. 確認 Vercel Production 環境的 `VITE_*` 變數與正式服務設定一致。
 2. 繼續完成手機窄版的附件、收費摘要、歷史維修與功能選單捲動及操作驗證。

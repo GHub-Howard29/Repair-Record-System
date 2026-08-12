@@ -56,7 +56,6 @@ import { getPurchaseTypeLabel } from './features/repair/purchaseType'
 import { getWarrantyStatus, isValidIsoDate } from './features/warranty/warranty'
 import { localAttachmentStorageService } from './services/attachmentStorageService'
 import { googleDriveAttachmentService } from './services/googleDriveAttachmentService'
-import { browserExportService } from './services/exportService'
 import { firestoreRepairRecordService, subscribeToRepairRecords } from './services/firestoreRepairRecordService'
 import { localRepairRecordService } from './storage/repairRepository'
 import type { PurchaseType, RepairAttachment, RepairFormValues, RepairRecord } from './types/repair'
@@ -812,6 +811,7 @@ function App() {
   async function exportRecordPdf(record: RepairRecord) {
     try {
       setExportMessage('正在準備 PDF，請稍候。')
+      const { browserExportService } = await import('./services/exportService')
       await browserExportService.exportRecordPdf(record)
       setExportMessage('PDF 已產生；電腦可於列印視窗另存，手機可選擇 PDF 預覽程式。檔名會自動帶入送回日期與客戶名稱。')
     } catch (error) {
@@ -844,6 +844,7 @@ function App() {
     }
 
     try {
+      const { browserExportService } = await import('./services/exportService')
       const result = await browserExportService.exportRecordsExcel(filteredRecords)
       setExportMessage(
         result === 'saved'
