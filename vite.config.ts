@@ -28,18 +28,6 @@ export default defineConfig({
             return 'firebase-core'
           }
 
-          if (id.includes('/node_modules/xlsx-js-style/')) {
-            return 'xlsx'
-          }
-
-          if (id.includes('/node_modules/html2canvas/')) {
-            return 'html2canvas'
-          }
-
-          if (id.includes('/node_modules/jspdf/')) {
-            return 'jspdf'
-          }
-
           return undefined
         },
       },

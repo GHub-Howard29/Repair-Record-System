@@ -2,6 +2,7 @@ import type { RepairRecord } from '../types/repair'
 import niceGreenLogoUrl from '../assets/nice-green-logo.jpg?inline'
 import { getPurchaseTypeLabel } from '../features/repair/purchaseType'
 import { getWarrantyStatus } from '../features/warranty/warranty'
+import { getGoogleDriveAttachmentPreviewDataUrl } from './googleDriveAttachmentService'
 
 export interface ExportService {
   exportRecordPdf(record: RepairRecord): Promise<void>
@@ -524,8 +525,6 @@ async function getAttachmentPreviewUrl(recordAttachment: RepairRecord['attachmen
   }
 
   try {
-    const { getGoogleDriveAttachmentPreviewDataUrl } = await import('./googleDriveAttachmentService')
-
     return await getGoogleDriveAttachmentPreviewDataUrl(recordAttachment)
   } catch {
     return undefined
