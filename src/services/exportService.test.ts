@@ -6,6 +6,7 @@ import {
   configureRepairExportLayout,
   getPdfPageSlices,
   getPdfExportTitle,
+  getPdfReportTitle,
   normalizeExcelText,
   REPAIR_EXPORT_COLUMNS,
 } from './exportService'
@@ -105,8 +106,29 @@ describe('列印維修紀錄', () => {
     ])
   })
 
-  it('PDF 檔名會包含送回日期與客戶名稱', () => {
-    expect(getPdfExportTitle(record)).toBe('維修報告_20260720_王小明')
+  it('已完成案件使用維修完工報告表頭及送回日期檔名', () => {
+    expect(getPdfReportTitle(record)).toBe('維修完工報告')
+    expect(getPdfExportTitle(record)).toBe('維修完工報告_20260720_王小明')
+  })
+
+  it('檢修中案件使用費用說明表頭，檔名日期優先使用維修日期', () => {
+    const inspectingRecord = { ...record, repairDate: '2026-07-18', returnedDate: '' }
+
+    expect(getPdfReportTitle(inspectingRecord)).toBe('維修檢測與費用說明')
+    expect(getPdfExportTitle(inspectingRecord)).toBe('維修檢測與費用說明_20260718_王小明')
+  })
+
+  it('檢修中尚未填維修日期時，檔名日期改用收到日期', () => {
+    expect(getPdfExportTitle({ ...record, repairDate: '', returnedDate: '' }))
+      .toBe('維修檢測與費用說明_20260717_王小明')
+  })
+
+  it('PDF 內容會依案件階段顯示對應表頭', async () => {
+    const completedHtml = await buildRepairPrintHtml(record)
+    const inspectingHtml = await buildRepairPrintHtml({ ...record, returnedDate: '' })
+
+    expect(completedHtml).toContain('<h1>維修完工報告</h1>')
+    expect(inspectingHtml).toContain('<h1>維修檢測與費用說明</h1>')
   })
 
   it('沒有附件時不產生附件清單頁面', async () => {

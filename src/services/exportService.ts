@@ -427,13 +427,21 @@ export function normalizeExcelText(value: string): string {
   return value.replace(/\r\n?|\n/g, ' ').trim()
 }
 
-export function getPdfExportTitle(record: Pick<RepairRecord, 'returnedDate' | 'customerName'>): string {
-  const returnedDate = /^\d{4}-\d{2}-\d{2}$/.test(record.returnedDate)
-    ? record.returnedDate.replaceAll('-', '')
-    : '未填送回日期'
+export function getPdfReportTitle(record: Pick<RepairRecord, 'returnedDate'>): string {
+  return record.returnedDate ? '維修完工報告' : '維修檢測與費用說明'
+}
+
+export function getPdfExportTitle(
+  record: Pick<RepairRecord, 'receivedDate' | 'repairDate' | 'returnedDate' | 'customerName'>,
+): string {
+  const reportTitle = getPdfReportTitle(record)
+  const reportDate = record.returnedDate || record.repairDate || record.receivedDate
+  const formattedDate = /^\d{4}-\d{2}-\d{2}$/.test(reportDate)
+    ? reportDate.replaceAll('-', '')
+    : '未填日期'
   const customerName = sanitizeFilenamePart(record.customerName) || '未填客戶'
 
-  return `維修報告_${returnedDate}_${customerName}`
+  return `${reportTitle}_${formattedDate}_${customerName}`
 }
 
 export async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
@@ -491,7 +499,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
 <body>
   <header class="report-header">
     <div class="company-brand"><img class="company-logo" src="${niceGreenLogoUrl}" alt="NICE GREEN" /><p class="company-name">庭茂農業生技股份有限公司</p></div>
-    <h1>維修紀錄</h1>
+    <h1>${getPdfReportTitle(record)}</h1>
   </header>
   <section>
     <table>
