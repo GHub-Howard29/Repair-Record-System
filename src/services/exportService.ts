@@ -3,6 +3,7 @@ import niceGreenLogoUrl from '../assets/nice-green-logo.jpg?inline'
 import { getPurchaseTypeLabel } from '../features/repair/purchaseType'
 import { getWarrantyStatus } from '../features/warranty/warranty'
 import { sortAttachmentsForPrint } from '../features/attachment/attachmentRules'
+import { buildChargeSummaryItems } from '../features/repair/chargeSummary'
 import { getGoogleDriveAttachmentPreviewDataUrl } from './googleDriveAttachmentService'
 
 export interface ExportService {
@@ -447,8 +448,12 @@ export function getPdfExportTitle(
 
 export async function buildRepairPrintHtml(record: RepairRecord): Promise<string> {
   const total = record.charges.reduce((sum, charge) => sum + charge.amount, 0)
-  const charges = record.charges
-    .map((charge) => `<tr><td>${escapeHtml(charge.label)}</td><td>${charge.amount.toLocaleString()} 元</td></tr>`)
+  const charges = buildChargeSummaryItems(record.charges)
+    .map((charge) => {
+      const amount = typeof charge.amount === 'number' ? `${charge.amount.toLocaleString()} 元` : charge.amount
+
+      return `<tr><td>${escapeHtml(charge.label)}</td><td>${escapeHtml(amount)}</td></tr>`
+    })
     .join('')
   const attachments = (
     await Promise.all(

@@ -1663,7 +1663,7 @@ function App() {
                     {chargeSummaryItems.map((charge) => (
                       <li key={charge.id}>
                         <span>{charge.label}</span>
-                        {charge.amount === undefined ? null : <strong>{charge.amount.toLocaleString()} 元</strong>}
+                        <strong>{typeof charge.amount === 'number' ? `${charge.amount.toLocaleString()} 元` : charge.amount}</strong>
                       </li>
                     ))}
                   </ul>
@@ -1688,7 +1688,7 @@ function App() {
                   {chargeSummaryItems.map((charge) => (
                     <li key={charge.id}>
                       <span>{charge.label}</span>
-                      {charge.amount === undefined ? null : <strong>{charge.amount.toLocaleString()} 元</strong>}
+                      <strong>{typeof charge.amount === 'number' ? `${charge.amount.toLocaleString()} 元` : charge.amount}</strong>
                     </li>
                   ))}
                 </ul>

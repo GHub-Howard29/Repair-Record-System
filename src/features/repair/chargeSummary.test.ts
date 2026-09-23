@@ -9,9 +9,17 @@ describe('收費摘要', () => {
     ])).toEqual([{ id: 'part-water-pump', label: '水泵', amount: 500 }])
   })
 
-  it('將金額為零的運費標示為客人自行取回', () => {
+  it('將金額為零的運費金額標示為客人自行取回', () => {
     expect(buildChargeSummaryItems([
       { id: 'shipping', label: '運費', amount: 0, kind: 'shipping' },
-    ])).toEqual([{ id: 'shipping', label: '客人自行取回' }])
+    ])).toEqual([{ id: 'shipping', label: '運費', amount: '客人自行取回' }])
+  })
+
+  it('先列零件費用，再列檢修測試費與運費', () => {
+    expect(buildChargeSummaryItems([
+      { id: 'inspection', label: '檢修測試費', amount: 100, kind: 'inspection' },
+      { id: 'shipping', label: '運費', amount: 80, kind: 'shipping' },
+      { id: 'part-water-pump', label: '水泵', amount: 500, kind: 'part' },
+    ]).map(({ label }) => label)).toEqual(['水泵', '檢修測試費', '運費'])
   })
 })

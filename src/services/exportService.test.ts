@@ -90,6 +90,21 @@ describe('收費項目匯出', () => {
 })
 
 describe('列印維修紀錄', () => {
+  it('收費內容依摘要排序、隱藏零元檢修費，並標示零元運費為客人自行取回', async () => {
+    const html = await buildRepairPrintHtml({
+      ...record,
+      charges: [
+        { id: 'inspection', label: '檢修測試費', amount: 0, kind: 'inspection' },
+        { id: 'shipping', label: '運費', amount: 0, kind: 'shipping' },
+        { id: 'part-water-pump', label: '水泵', amount: 500, kind: 'part' },
+      ],
+    })
+
+    expect(html).not.toContain('檢修測試費')
+    expect(html).toContain('<td>運費</td><td>客人自行取回</td>')
+    expect(html.indexOf('<td>水泵</td>')).toBeLessThan(html.indexOf('<td>運費</td>'))
+  })
+
   it('手機 PDF 會在附件清單前強制換頁', () => {
     expect(getPdfPageSlices(2_400, 1_000, [720])).toEqual([
       { offset: 0, height: 720 },

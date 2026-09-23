@@ -3,19 +3,23 @@ import type { RepairCharge } from '../../types/repair'
 export interface ChargeSummaryItem {
   id: string
   label: string
-  amount?: number
+  amount: number | string
 }
 
 export function buildChargeSummaryItems(charges: RepairCharge[]): ChargeSummaryItem[] {
-  return charges.flatMap((charge) => {
-    if (charge.kind === 'inspection' && charge.amount === 0) {
-      return []
-    }
+  const parts = charges
+    .filter((charge) => charge.kind === 'part')
+    .map((charge) => ({ id: charge.id, label: charge.label, amount: charge.amount }))
+  const inspection = charges
+    .filter((charge) => charge.kind === 'inspection' && charge.amount !== 0)
+    .map((charge) => ({ id: charge.id, label: charge.label, amount: charge.amount }))
+  const shipping = charges
+    .filter((charge) => charge.kind === 'shipping')
+    .map((charge) => ({
+      id: charge.id,
+      label: charge.label,
+      amount: charge.amount === 0 ? '客人自行取回' : charge.amount,
+    }))
 
-    if (charge.kind === 'shipping' && charge.amount === 0) {
-      return [{ id: charge.id, label: '客人自行取回' }]
-    }
-
-    return [{ id: charge.id, label: charge.label, amount: charge.amount }]
-  })
+  return [...parts, ...inspection, ...shipping]
 }
