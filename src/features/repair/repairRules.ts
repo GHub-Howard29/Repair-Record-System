@@ -1,5 +1,6 @@
 import type { RepairCharge, RepairFormValues, RepairRecord } from '../../types/repair'
 import { isValidIsoDate } from '../warranty/warranty'
+import { sortFaultPartsByOptionOrder } from './repairOptions'
 
 const baseCharges: RepairCharge[] = [
   { id: 'inspection', label: '檢修測試費', amount: 0, kind: 'inspection' },
@@ -108,7 +109,7 @@ export function toRepairFormValues(record?: RepairRecord): RepairFormValues {
     purchaseType: record?.purchaseType ?? '',
     repairDate: record?.repairDate ?? '',
     faultCategory: record?.faultCategory ?? '',
-    faultPartsText: record?.faultParts.join('，') ?? '',
+    faultPartsText: record ? sortFaultPartsByOptionOrder(record.faultParts).join('，') : '',
     repairContent: record?.repairContent ?? '',
     note: record?.note ?? '',
     inspectionFee: record?.charges.find((charge) => charge.id === 'inspection')?.amount ?? 0,
@@ -148,7 +149,7 @@ export function buildRepairRecord(
   existingRecord?: RepairRecord,
 ): RepairRecord {
   const now = new Date().toISOString()
-  const faultParts = parseFaultParts(values.faultPartsText)
+  const faultParts = sortFaultPartsByOptionOrder(parseFaultParts(values.faultPartsText))
   const partCharges = faultParts.map<RepairCharge>((part) => {
     const existingCharge = existingRecord?.charges.find((charge) => charge.label === part)
 

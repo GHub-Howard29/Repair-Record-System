@@ -1,9 +1,10 @@
 import type { RepairAttachment } from '../../types/repair'
 
-export const MAX_ATTACHMENT_COUNT = 5
+export const MAX_ATTACHMENT_COUNT = 6
 export const MAX_ATTACHMENT_SIZE = 1.5 * 1024 * 1024
 
-const ATTACHMENT_LABELS = ['附件一', '附件二', '附件三', '附件四', '附件五']
+const ATTACHMENT_LABELS = ['附件一', '附件二', '附件三', '附件四', '附件五', '附件六']
+const PRINT_ATTACHMENT_DESCRIPTION_ORDER = ['維修前', '維修中', '維修後', '其他'] as const
 
 export function getAttachmentLabel(index: number): string {
   return ATTACHMENT_LABELS[index] ?? `附件${index + 1}`
@@ -34,7 +35,7 @@ export function validateAttachmentFile(file: File, attachments: RepairAttachment
   }
 
   if (!replacing && !canAddAttachment(attachments)) {
-    return '每筆維修紀錄最多五張附件。'
+    return '每筆維修紀錄最多六張附件。'
   }
 
   return null
@@ -59,6 +60,20 @@ export async function createAttachmentFromFile(file: File, label: string, index:
 
 export function relabelAttachments(attachments: RepairAttachment[]): RepairAttachment[] {
   return attachments
+}
+
+export function sortAttachmentsForPrint(attachments: RepairAttachment[]): RepairAttachment[] {
+  const descriptionOrder = new Map<string, number>(PRINT_ATTACHMENT_DESCRIPTION_ORDER.map((description, index) => [description, index]))
+
+  return attachments
+    .map((attachment, index) => ({ attachment, index }))
+    .sort((left, right) => {
+      const leftOrder = descriptionOrder.get(left.attachment.label) ?? PRINT_ATTACHMENT_DESCRIPTION_ORDER.length - 1
+      const rightOrder = descriptionOrder.get(right.attachment.label) ?? PRINT_ATTACHMENT_DESCRIPTION_ORDER.length - 1
+
+      return leftOrder - rightOrder || left.index - right.index
+    })
+    .map(({ attachment }) => attachment)
 }
 
 interface AttachmentImageResult {

@@ -168,4 +168,22 @@ describe('列印維修紀錄', () => {
     expect(html).toContain('attachments-section')
     expect(html).toContain('attachment-image-frame')
   })
+
+  it('附件清單依標記固定排序，且同標記保留儲存順序', async () => {
+    const html = await buildRepairPrintHtml({
+      ...record,
+      attachments: [
+        { id: 'during-a', fileName: 'during-a.jpg', label: '維修中', mimeType: 'image/jpeg', size: 1, compressed: false, previewUrl: 'data:image/jpeg;base64,during-a', syncStatus: 'synced', createdAt: '2026-07-17T00:00:00.000Z' },
+        { id: 'before-a', fileName: 'before-a.jpg', label: '維修前', mimeType: 'image/jpeg', size: 1, compressed: false, previewUrl: 'data:image/jpeg;base64,before-a', syncStatus: 'synced', createdAt: '2026-07-17T00:00:01.000Z' },
+        { id: 'other-a', fileName: 'other-a.jpg', label: '其他', mimeType: 'image/jpeg', size: 1, compressed: false, previewUrl: 'data:image/jpeg;base64,other-a', syncStatus: 'synced', createdAt: '2026-07-17T00:00:02.000Z' },
+        { id: 'during-b', fileName: 'during-b.jpg', label: '維修中', mimeType: 'image/jpeg', size: 1, compressed: false, previewUrl: 'data:image/jpeg;base64,during-b', syncStatus: 'synced', createdAt: '2026-07-17T00:00:03.000Z' },
+        { id: 'before-b', fileName: 'before-b.jpg', label: '維修前', mimeType: 'image/jpeg', size: 1, compressed: false, previewUrl: 'data:image/jpeg;base64,before-b', syncStatus: 'synced', createdAt: '2026-07-17T00:00:04.000Z' },
+      ],
+    })
+
+    expect(html.indexOf('before-a')).toBeLessThan(html.indexOf('before-b'))
+    expect(html.indexOf('before-b')).toBeLessThan(html.indexOf('during-a'))
+    expect(html.indexOf('during-a')).toBeLessThan(html.indexOf('during-b'))
+    expect(html.indexOf('during-b')).toBeLessThan(html.indexOf('other-a'))
+  })
 })

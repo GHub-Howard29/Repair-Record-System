@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getSerialNumberError, isRepairCompleted, validateRepairCompletion, validateRepairForm } from './repairRules'
+import { buildRepairRecord, getSerialNumberError, isRepairCompleted, toRepairFormValues, validateRepairCompletion, validateRepairForm } from './repairRules'
 
 describe('製造號碼驗證', () => {
   it('接受 NIS- 加 12 碼英數字', () => {
@@ -81,5 +81,21 @@ describe('維修完成規則', () => {
       shippingFee: 0,
       partChargeAmounts: {},
     })).toEqual([])
+  })
+})
+
+describe('零件欄位排序', () => {
+  it('依核取方塊固定順序建立零件收費欄位', () => {
+    const values = {
+      receivedDate: '2026-07-17', returnLocation: '台北', customerName: '', serialNumber: 'NIS-12AB34CD56EF',
+      shippedDate: '', purchaseType: '', repairDate: '', faultCategory: '', faultPartsText: '燈盤，水泵，控制板',
+      repairContent: '', note: '', returnedDate: '', inspectionFee: 0, shippingFee: 0,
+      partChargeAmounts: { 水泵: 100, 控制板: 200, 燈盤: 300 },
+    } as const
+    const repairRecord = buildRepairRecord(values)
+
+    expect(repairRecord.faultParts).toEqual(['水泵', '控制板', '燈盤'])
+    expect(repairRecord.charges.map(({ label }) => label)).toEqual(['檢修測試費', '運費', '水泵', '控制板', '燈盤'])
+    expect(toRepairFormValues({ ...repairRecord, faultParts: ['燈盤', '水泵'] }).faultPartsText).toBe('水泵，燈盤')
   })
 })

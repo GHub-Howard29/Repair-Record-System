@@ -46,11 +46,12 @@ import {
   createAttachmentFromFile,
   getAttachmentLabel,
   getAttachmentSyncStatusLabel,
+  MAX_ATTACHMENT_COUNT,
   relabelAttachments,
   validateAttachmentFile,
 } from './features/attachment/attachmentRules'
 import { runWithMinimumLock } from './features/attachment/attachmentDeleteLock'
-import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS } from './features/repair/repairOptions'
+import { ATTACHMENT_DESCRIPTIONS, DEFAULT_FAULT_CATEGORIES, DEFAULT_FAULT_PARTS, sortFaultPartsByOptionOrder } from './features/repair/repairOptions'
 import { filterRepairRecords, hasRecordSearchFilters } from './features/search/recordSearch'
 import { getPurchaseTypeLabel } from './features/repair/purchaseType'
 import { getWarrantyStatus, isValidIsoDate } from './features/warranty/warranty'
@@ -233,17 +234,40 @@ function App() {
   const [exportMessage, setExportMessage] = useState('可匯出單筆維修紀錄或全部資料；電腦以列印視窗另存 PDF，手機可選擇 PDF 預覽程式。')
   const [exportSelectionMode, setExportSelectionMode] = useState<'pdf' | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<RepairAttachment | null>(null)
+  const [pendingExitAction, setPendingExitAction] = useState<'logout' | 'close' | null>(null)
   const [authMessage, setAuthMessage] = useState(
     isGoogleAuthConfigured() ? '正式 Google OAuth 已設定。' : '請在 .env 設定 VITE_GOOGLE_CLIENT_ID 啟用正式登入。',
   )
   const googleButtonRef = useRef<HTMLDivElement | null>(null)
   const mutationInProgressRef = useRef(false)
   const syncRunnerRef = useRef<CoalescingSyncRunner | null>(null)
+  const suppressBeforeUnloadRef = useRef(false)
   const completed = selectedRecord ? isRepairCompleted(selectedRecord) : false
   const operationInProgress = isMutating
   const serialNumberError = getSerialNumberError(form.serialNumber)
-  const formFaultParts = useMemo(() => parseFaultParts(form.faultPartsText), [form.faultPartsText])
+  const formFaultParts = useMemo(
+    () => sortFaultPartsByOptionOrder(parseFaultParts(form.faultPartsText)),
+    [form.faultPartsText],
+  )
   const attachmentList = selectedRecord ? selectedRecord.attachments : draftAttachments
+  const hasUnsavedChanges = Boolean(
+    selectedRecord
+    || draftAttachments.length > 0
+    || form.returnLocation
+    || form.customerName
+    || form.serialNumber !== 'NIS-'
+    || form.shippedDate
+    || form.purchaseType
+    || form.repairDate
+    || form.faultCategory
+    || form.faultPartsText
+    || form.repairContent
+    || form.note
+    || form.returnedDate
+    || form.inspectionFee
+    || form.shippingFee
+    || Object.values(form.partChargeAmounts).some(Boolean),
+  )
 
   if (!syncRunnerRef.current) {
     syncRunnerRef.current = createCoalescingSyncRunner({
@@ -502,6 +526,25 @@ function App() {
     )
   }, [user])
 
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      return
+    }
+
+    function warnBeforeClosing(event: BeforeUnloadEvent) {
+      if (suppressBeforeUnloadRef.current) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', warnBeforeClosing)
+
+    return () => window.removeEventListener('beforeunload', warnBeforeClosing)
+  }, [hasUnsavedChanges])
+
   function startNewRecord() {
     setMobileView('editor')
     setSelectedId(null)
@@ -520,7 +563,7 @@ function App() {
     setDraftAttachments([])
     setMessage(isRepairCompleted(record) ? '此案件已完成，依規則只能檢視。' : '正在編輯維修中案件。')
     setAttachmentMessage(
-      isRepairCompleted(record) ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多五張圖片附件。',
+      isRepairCompleted(record) ? '此案件已完成，附件已鎖定。' : '可新增、更換或刪除最多六張圖片附件。',
     )
     setPreviewAttachment(null)
     setExportSelectionMode(null)
@@ -549,7 +592,7 @@ function App() {
     const nextParts = formFaultParts.includes(part)
       ? formFaultParts.filter((item) => item !== part)
       : [...formFaultParts, part]
-    updateForm('faultPartsText', nextParts.join('，'))
+    updateForm('faultPartsText', sortFaultPartsByOptionOrder(nextParts).join('，'))
   }
 
   function getAttachmentDescription(): string {
@@ -611,13 +654,15 @@ function App() {
   }
 
   async function saveRecord() {
-    await runMutation(saveRecordOperation, () => setMessage('目前正在處理上一個操作，請稍候。'))
+    await runMutation(async () => {
+      await saveRecordOperation()
+    }, () => setMessage('目前正在處理上一個操作，請稍候。'))
   }
 
-  async function saveRecordOperation() {
+  async function saveRecordOperation(): Promise<boolean> {
     if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setMessage('已完成案件不可修改，請建立新紀錄補充說明。')
-      return
+      return false
     }
 
     const errors = validateRepairForm(form)
@@ -629,12 +674,12 @@ function App() {
           ? `送回日期已填寫，請補足結案資料後再儲存：${[...errors, ...completionErrors].join(' ')}`
           : `請完成必填欄位後再儲存：${errors.join(' ')}`,
       )
-      return
+      return false
     }
 
     if (hasOpenRepairWithSerial(records, form.serialNumber, selectedRecord?.id)) {
       setMessage('此製造號碼已有尚未完成的維修紀錄，請從左側列表前往編輯。')
-      return
+      return false
     }
 
     const latestSelectedRecord = selectedRecord
@@ -651,7 +696,7 @@ function App() {
       setAttachmentMessage(
         nextRecord.returnedDate
           ? '此案件已完成，附件已鎖定。'
-          : '可新增、更換或刪除最多五張圖片附件。',
+          : '可新增、更換或刪除最多六張圖片附件。',
       )
 
       if (nextRecord.returnedDate) {
@@ -659,8 +704,10 @@ function App() {
         setIsStatusFilterExplicit(true)
         setMessage('案件已完成並儲存，已切換至已完成清單。')
       }
+      return true
     } catch (error) {
       setMessage(error instanceof Error ? `儲存失敗：${error.message}` : '儲存失敗，請稍後再試。')
+      return false
     }
   }
 
@@ -947,12 +994,55 @@ function App() {
     setShowInstallPrompt(false)
   }
 
-  function handleLogout() {
+  function completeLogout() {
     clearStoredAuthUser()
     setUser(null)
     setAuthMessage(
       isGoogleAuthConfigured() ? '已登出，請重新使用 Google 登入。' : '已登出，本機開發模式可再次登入。',
     )
+  }
+
+  function requestExit(action: 'logout' | 'close') {
+    setIsMobileMenuOpen(false)
+    setPendingExitAction(action)
+  }
+
+  function completeCloseApp() {
+    suppressBeforeUnloadRef.current = true
+    window.close()
+    window.setTimeout(() => {
+      suppressBeforeUnloadRef.current = false
+      setMessage('若 APP 視窗未自動關閉，請使用視窗右上角的關閉按鈕。')
+    }, 300)
+  }
+
+  async function confirmExit(saveBeforeExit: boolean) {
+    const action = pendingExitAction
+
+    if (!action) {
+      return
+    }
+
+    if (saveBeforeExit) {
+      let saved = false
+      await runMutation(async () => {
+        saved = await saveRecordOperation()
+      }, () => setMessage('目前正在處理上一個操作，請稍候。'))
+
+      if (!saved) {
+        setPendingExitAction(null)
+        return
+      }
+    }
+
+    setPendingExitAction(null)
+
+    if (action === 'logout') {
+      completeLogout()
+      return
+    }
+
+    completeCloseApp()
   }
 
   if (!user) {
@@ -990,9 +1080,17 @@ function App() {
           {isLoadingRecords ? <span className="loading-status">載入中</span> : null}
         </div>
         <div className="header-actions">
-          {user.picture ? <img className="avatar" src={user.picture} alt="" /> : null}
-          <button type="button" className="ghost-action" onClick={handleLogout}>
-            登出
+          <div className="desktop-account-actions">
+            {user.picture ? <img className="avatar" src={user.picture} alt="" /> : null}
+            <button type="button" className="ghost-action" onClick={() => requestExit('logout')}>
+              登出
+            </button>
+            <button type="button" className="ghost-action close-app-action" onClick={() => requestExit('close')}>
+              <span aria-hidden="true">×</span> 關閉 APP
+            </button>
+          </div>
+          <button type="button" className="ghost-action mobile-close-app-action" onClick={() => requestExit('close')}>
+            <span aria-hidden="true">×</span> 關閉 APP
           </button>
         </div>
       </header>
@@ -1058,6 +1156,11 @@ function App() {
         <button type="button" onClick={() => { setMobileView('details'); setIsMobileMenuOpen(false) }}>
           其他功能
         </button>
+        <div className="mobile-menu-account">
+          {user.picture ? <img className="avatar" src={user.picture} alt="" /> : null}
+          <span>{user.name}</span>
+          <button type="button" className="ghost-action" onClick={() => requestExit('logout')}>登出</button>
+        </div>
       </nav>
 
       <div className="workspace-grid">
@@ -1475,25 +1578,25 @@ function App() {
               ) : null}
             </fieldset>
             <div className="attachment-file-actions">
-              <label className={completed || operationInProgress || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+              <label className={completed || operationInProgress || attachmentList.length >= MAX_ATTACHMENT_COUNT ? 'file-action disabled' : 'file-action'}>
                 拍照新增
                 <input
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  disabled={completed || operationInProgress || attachmentList.length >= 5}
+                  disabled={completed || operationInProgress || attachmentList.length >= MAX_ATTACHMENT_COUNT}
                   onChange={(event) => {
                     void addAttachment(event.target.files)
                     event.currentTarget.value = ''
                   }}
                 />
               </label>
-              <label className={completed || operationInProgress || attachmentList.length >= 5 ? 'file-action disabled' : 'file-action'}>
+              <label className={completed || operationInProgress || attachmentList.length >= MAX_ATTACHMENT_COUNT ? 'file-action disabled' : 'file-action'}>
                 從裝置選擇
                 <input
                   type="file"
                   accept="image/*"
-                  disabled={completed || operationInProgress || attachmentList.length >= 5}
+                  disabled={completed || operationInProgress || attachmentList.length >= MAX_ATTACHMENT_COUNT}
                   onChange={(event) => {
                     void addAttachment(event.target.files)
                     event.currentTarget.value = ''
@@ -1548,7 +1651,7 @@ function App() {
                 ))}
               </ul>
             ) : (
-              <p className="empty-state">尚未加入照片，可新增最多五張圖片。</p>
+              <p className="empty-state">尚未加入照片，可新增最多六張圖片。</p>
             )}
             <section className="charge-summary mobile-charge-summary">
               <h2>收費摘要</h2>
@@ -1667,6 +1770,23 @@ function App() {
             </div>
             <img src={getAttachmentPreviewUrl(previewAttachment)} alt={previewAttachment.label} />
           </div>
+        </div>
+      ) : null}
+      {pendingExitAction ? (
+        <div className="exit-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="exit-confirm-title">
+          <div className="exit-confirm-backdrop" />
+          <section className="exit-confirm-content">
+            <h2 id="exit-confirm-title">尚有未儲存的變更</h2>
+            <p>請先儲存維修資料，避免未儲存的內容遺失。</p>
+            <div className="exit-confirm-actions">
+              <button type="button" className="ghost-action" disabled={operationInProgress} onClick={() => void confirmExit(false)}>
+                不儲存直接{pendingExitAction === 'logout' ? '登出' : '關閉'}
+              </button>
+              <button type="button" className="primary-action" disabled={operationInProgress} onClick={() => void confirmExit(true)}>
+                儲存後{pendingExitAction === 'logout' ? '登出' : '關閉'}
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
     </main>

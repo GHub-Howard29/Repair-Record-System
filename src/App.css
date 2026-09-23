@@ -196,6 +196,75 @@ body,
   margin-left: auto;
 }
 
+.desktop-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.close-app-action,
+.mobile-close-app-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.close-app-action span,
+.mobile-close-app-action span {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 0.8;
+}
+
+.mobile-close-app-action,
+.mobile-menu-account {
+  display: none;
+}
+
+.exit-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.exit-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.exit-confirm-content {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  padding: 28px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34);
+}
+
+.exit-confirm-content h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 24px;
+}
+
+.exit-confirm-content p {
+  margin: 12px 0 0;
+  color: #3f596c;
+  line-height: 1.6;
+}
+
+.exit-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
 .editor-actions {
   display: flex;
   gap: 8px;
@@ -1009,6 +1078,15 @@ body,
     gap: 8px;
   }
 
+  .desktop-account-actions {
+    display: none;
+  }
+
+  .mobile-close-app-action {
+    display: inline-flex;
+    white-space: nowrap;
+  }
+
   .mobile-menu-backdrop {
     position: fixed;
     inset: 0;
@@ -1024,8 +1102,8 @@ body,
     bottom: 0;
     left: 0;
     z-index: 21;
-    display: grid;
-    align-content: start;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     width: min(280px, 82vw);
     padding: 24px 16px;
@@ -1058,6 +1136,48 @@ body,
     font-weight: 700;
     text-align: left;
     cursor: pointer;
+  }
+
+  .mobile-menu-account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid #d8dee9;
+    color: #172033;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .mobile-menu-account span {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-menu-account .ghost-action {
+    width: auto;
+    padding: 8px 10px;
+  }
+
+  .exit-confirm-dialog {
+    align-items: end;
+    padding: 16px;
+  }
+
+  .exit-confirm-content {
+    padding: 24px 20px;
+  }
+
+  .exit-confirm-actions {
+    flex-direction: column-reverse;
+  }
+
+  .exit-confirm-actions button {
+    width: 100%;
   }
 
   .mobile-panel {

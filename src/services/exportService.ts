@@ -2,6 +2,7 @@ import type { RepairRecord } from '../types/repair'
 import niceGreenLogoUrl from '../assets/nice-green-logo.jpg?inline'
 import { getPurchaseTypeLabel } from '../features/repair/purchaseType'
 import { getWarrantyStatus } from '../features/warranty/warranty'
+import { sortAttachmentsForPrint } from '../features/attachment/attachmentRules'
 import { getGoogleDriveAttachmentPreviewDataUrl } from './googleDriveAttachmentService'
 
 export interface ExportService {
@@ -451,7 +452,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
     .join('')
   const attachments = (
     await Promise.all(
-      record.attachments.map(async (attachment) => {
+      sortAttachmentsForPrint(record.attachments).map(async (attachment) => {
       const previewUrl = await getAttachmentPreviewUrl(attachment)
       const description = escapeHtml(attachment.label || '未填寫照片說明')
 
@@ -554,7 +555,7 @@ function createPdfExportElement(printHtml: string): { element: HTMLElement; disp
   element.style.cssText = 'position:fixed; left:0; top:0; z-index:2147483647; width:794px; min-height:1123px; box-sizing:border-box; background:#ffffff; color:#172033; overflow:auto;'
   // 電腦列印保留原有的標題微調；手機逐頁擷取時，負的 translateY 會讓標題跨出
   // 第一頁畫布而被裁切，因此只在這個暫存匯出容器取消位移。附件照片僅在手機
-  // Canvas 匯出時使用固定框，讓最多五張照片可排進一張 A4 直式頁面，再在框內
+  // Canvas 匯出時使用固定框，讓最多六張照片可排進一張 A4 直式頁面，再在框內
   // 等比例縮放、不裁切；電腦版瀏覽器列印保留原有圖片樣式。
   style.textContent = `${printStyles.replaceAll('body', '#pdf-export-source')}
     #pdf-export-source .company-brand { transform: none; }
