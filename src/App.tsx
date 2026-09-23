@@ -36,6 +36,7 @@ import {
   validateRepairCompletion,
   validateRepairForm,
 } from './features/repair/repairRules'
+import { buildChargeSummaryItems } from './features/repair/chargeSummary'
 import {
   getDateInputDraft,
   promoteInitialValidDate,
@@ -250,6 +251,7 @@ function App() {
     [form.faultPartsText],
   )
   const attachmentList = selectedRecord ? selectedRecord.attachments : draftAttachments
+  const chargeSummaryItems = selectedRecord ? buildChargeSummaryItems(selectedRecord.charges) : []
   const hasUnsavedChanges = Boolean(
     selectedRecord
     || draftAttachments.length > 0
@@ -1658,10 +1660,10 @@ function App() {
               {selectedRecord ? (
                 <>
                   <ul className="charge-list">
-                    {selectedRecord.charges.map((charge) => (
+                    {chargeSummaryItems.map((charge) => (
                       <li key={charge.id}>
                         <span>{charge.label}</span>
-                        <strong>{charge.amount.toLocaleString()} 元</strong>
+                        {charge.amount === undefined ? null : <strong>{charge.amount.toLocaleString()} 元</strong>}
                       </li>
                     ))}
                   </ul>
@@ -1683,10 +1685,10 @@ function App() {
             {selectedRecord ? (
               <>
                 <ul className="charge-list">
-                  {selectedRecord.charges.map((charge) => (
+                  {chargeSummaryItems.map((charge) => (
                     <li key={charge.id}>
                       <span>{charge.label}</span>
-                      <strong>{charge.amount.toLocaleString()} 元</strong>
+                      {charge.amount === undefined ? null : <strong>{charge.amount.toLocaleString()} 元</strong>}
                     </li>
                   ))}
                 </ul>
