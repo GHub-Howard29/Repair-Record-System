@@ -97,6 +97,14 @@ function getHistoryChargeSummary(record: RepairRecord): string {
   return chargedItems.length > 0 ? chargedItems.join('、') : '無收費項目'
 }
 
+function isSameRepairForm(left: RepairFormValues, right: RepairFormValues): boolean {
+  const normalizePartAmounts = (amounts: Record<string, number>) => Object.entries(amounts)
+    .sort(([leftPart], [rightPart]) => leftPart.localeCompare(rightPart))
+
+  return JSON.stringify({ ...left, partChargeAmounts: normalizePartAmounts(left.partChargeAmounts) })
+    === JSON.stringify({ ...right, partChargeAmounts: normalizePartAmounts(right.partChargeAmounts) })
+}
+
 function DateField({
   value,
   disabled,
@@ -236,6 +244,7 @@ function App() {
   const [exportSelectionMode, setExportSelectionMode] = useState<'pdf' | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<RepairAttachment | null>(null)
   const [pendingExitAction, setPendingExitAction] = useState<'logout' | 'close' | null>(null)
+  const [pendingSwitchTarget, setPendingSwitchTarget] = useState<RepairRecord | 'new' | null>(null)
   const [authMessage, setAuthMessage] = useState(
     isGoogleAuthConfigured() ? '正式 Google OAuth 已設定。' : '請在 .env 設定 VITE_GOOGLE_CLIENT_ID 啟用正式登入。',
   )
@@ -252,24 +261,11 @@ function App() {
   )
   const attachmentList = selectedRecord ? selectedRecord.attachments : draftAttachments
   const chargeSummaryItems = selectedRecord ? buildChargeSummaryItems(selectedRecord.charges) : []
-  const hasUnsavedChanges = Boolean(
-    selectedRecord
-    || draftAttachments.length > 0
-    || form.returnLocation
-    || form.customerName
-    || form.serialNumber !== 'NIS-'
-    || form.shippedDate
-    || form.purchaseType
-    || form.repairDate
-    || form.faultCategory
-    || form.faultPartsText
-    || form.repairContent
-    || form.note
-    || form.returnedDate
-    || form.inspectionFee
-    || form.shippingFee
-    || Object.values(form.partChargeAmounts).some(Boolean),
+  const savedForm = useMemo(
+    () => toRepairFormValues(selectedRecord),
+    [selectedRecord],
   )
+  const hasUnsavedChanges = draftAttachments.length > 0 || !isSameRepairForm(form, savedForm)
 
   if (!syncRunnerRef.current) {
     syncRunnerRef.current = createCoalescingSyncRunner({
@@ -558,6 +554,17 @@ function App() {
     setPreviewAttachment(null)
   }
 
+  function requestNewRecord() {
+    setIsMobileMenuOpen(false)
+
+    if (hasUnsavedChanges) {
+      setPendingSwitchTarget('new')
+      return
+    }
+
+    startNewRecord()
+  }
+
   function editRecord(record: RepairRecord) {
     setMobileView('editor')
     setSelectedId(record.id)
@@ -569,6 +576,20 @@ function App() {
     )
     setPreviewAttachment(null)
     setExportSelectionMode(null)
+  }
+
+  function requestEditRecord(record: RepairRecord) {
+    if (record.id === selectedId) {
+      setMobileView('editor')
+      return
+    }
+
+    if (hasUnsavedChanges) {
+      setPendingSwitchTarget(record)
+      return
+    }
+
+    editRecord(record)
   }
 
   function updateForm<K extends keyof RepairFormValues>(key: K, value: RepairFormValues[K]) {
@@ -1006,6 +1027,16 @@ function App() {
 
   function requestExit(action: 'logout' | 'close') {
     setIsMobileMenuOpen(false)
+
+    if (!hasUnsavedChanges) {
+      if (action === 'logout') {
+        completeLogout()
+      } else {
+        completeCloseApp()
+      }
+      return
+    }
+
     setPendingExitAction(action)
   }
 
@@ -1035,6 +1066,8 @@ function App() {
         setPendingExitAction(null)
         return
       }
+
+      await runSyncQueue()
     }
 
     setPendingExitAction(null)
@@ -1045,6 +1078,35 @@ function App() {
     }
 
     completeCloseApp()
+  }
+
+  async function confirmSwitch(saveBeforeSwitch: boolean) {
+    const target = pendingSwitchTarget
+
+    if (!target) {
+      return
+    }
+
+    if (saveBeforeSwitch) {
+      let saved = false
+      await runMutation(async () => {
+        saved = await saveRecordOperation()
+      }, () => setMessage('目前正在處理上一個操作，請稍候。'))
+
+      if (!saved) {
+        setPendingSwitchTarget(null)
+        return
+      }
+    }
+
+    setPendingSwitchTarget(null)
+
+    if (target === 'new') {
+      startNewRecord()
+      return
+    }
+
+    editRecord(target)
   }
 
   if (!user) {
@@ -1149,7 +1211,7 @@ function App() {
       {isMobileMenuOpen ? <button type="button" className="mobile-menu-backdrop" aria-label="關閉功能選單" onClick={() => setIsMobileMenuOpen(false)} /> : null}
       <nav className={isMobileMenuOpen ? 'mobile-menu open' : 'mobile-menu'} aria-label="功能選單">
         <div className="mobile-menu-heading">功能選單</div>
-        <button type="button" onClick={() => { startNewRecord(); setIsMobileMenuOpen(false) }}>
+        <button type="button" onClick={requestNewRecord}>
           新增維修紀錄
         </button>
         <button type="button" onClick={() => { setMobileView('records'); setIsMobileMenuOpen(false) }}>
@@ -1266,7 +1328,7 @@ function App() {
                         return
                       }
 
-                      editRecord(record)
+                      requestEditRecord(record)
                     }}
                   >
                     <strong>{record.serialNumber}</strong>
@@ -1318,7 +1380,7 @@ function App() {
               <h2>{selectedRecord?.serialNumber || '新增維修紀錄'}</h2>
             </div>
             <div className="editor-actions">
-              <button type="button" className="ghost-action" onClick={startNewRecord}>
+              <button type="button" className="ghost-action" onClick={requestNewRecord}>
                 新增
               </button>
               <button type="button" className="primary-action" onClick={() => void saveRecord()} disabled={completed || operationInProgress}>
@@ -1774,18 +1836,18 @@ function App() {
           </div>
         </div>
       ) : null}
-      {pendingExitAction ? (
+      {pendingExitAction || pendingSwitchTarget ? (
         <div className="exit-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="exit-confirm-title">
           <div className="exit-confirm-backdrop" />
           <section className="exit-confirm-content">
             <h2 id="exit-confirm-title">尚有未儲存的變更</h2>
-            <p>請先儲存維修資料，避免未儲存的內容遺失。</p>
+            <p>{pendingSwitchTarget ? '請先儲存維修資料，避免切換後遺失未儲存的內容。' : '請先儲存維修資料，避免未儲存的內容遺失。'}</p>
             <div className="exit-confirm-actions">
-              <button type="button" className="ghost-action" disabled={operationInProgress} onClick={() => void confirmExit(false)}>
-                不儲存直接{pendingExitAction === 'logout' ? '登出' : '關閉'}
+              <button type="button" className="ghost-action" disabled={operationInProgress} onClick={() => void (pendingSwitchTarget ? confirmSwitch(false) : confirmExit(false))}>
+                不儲存直接{pendingSwitchTarget ? '切換' : pendingExitAction === 'logout' ? '登出' : '關閉'}
               </button>
-              <button type="button" className="primary-action" disabled={operationInProgress} onClick={() => void confirmExit(true)}>
-                儲存後{pendingExitAction === 'logout' ? '登出' : '關閉'}
+              <button type="button" className="primary-action" disabled={operationInProgress} onClick={() => void (pendingSwitchTarget ? confirmSwitch(true) : confirmExit(true))}>
+                儲存後{pendingSwitchTarget ? '切換' : pendingExitAction === 'logout' ? '登出' : '關閉'}
               </button>
             </div>
           </section>
