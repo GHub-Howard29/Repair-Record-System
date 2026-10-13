@@ -146,6 +146,16 @@ describe('列印維修紀錄', () => {
     expect(inspectingHtml).toContain('<h1>維修檢測與費用說明</h1>')
   })
 
+  it('只有勾選且備註有內容時才輸出備註', async () => {
+    const uncheckedHtml = await buildRepairPrintHtml({ ...record, note: '僅供內部使用', includeNoteInPdf: false })
+    const emptyNoteHtml = await buildRepairPrintHtml({ ...record, note: '', includeNoteInPdf: true })
+    const includedHtml = await buildRepairPrintHtml({ ...record, note: '提供客戶參考', includeNoteInPdf: true })
+
+    expect(uncheckedHtml).not.toContain('僅供內部使用')
+    expect(emptyNoteHtml).not.toContain('<th>備註</th>')
+    expect(includedHtml).toContain('<tr><th>備註</th><td>提供客戶參考</td></tr>')
+  })
+
   it('沒有附件時不產生附件清單頁面', async () => {
     const html = await buildRepairPrintHtml(record)
 

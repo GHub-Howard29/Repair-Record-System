@@ -520,7 +520,7 @@ export async function buildRepairPrintHtml(record: RepairRecord): Promise<string
       <tr><th>保固期判斷</th><td>${escapeHtml(getWarrantyStatus(record.receivedDate, record.shippedDate))}</td></tr>
       <tr><th>故障零件</th><td>${escapeHtml(record.faultParts.join('、'))}</td></tr>
       <tr><th>維修內容</th><td>${escapeHtml(record.repairContent)}</td></tr>
-      <tr><th>備註</th><td>${escapeHtml(record.note)}</td></tr>
+      ${record.includeNoteInPdf && record.note.trim() ? `<tr><th>備註</th><td>${escapeHtml(record.note)}</td></tr>` : ''}
       <tr><th>送回日期</th><td>${escapeHtml(record.returnedDate)}</td></tr>
     </table>
   </section>

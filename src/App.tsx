@@ -1610,6 +1610,15 @@ function App() {
                 disabled={completed}
                 onChange={(event) => updateForm('note', event.target.value)}
               />
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.includeNoteInPdf}
+                  disabled={completed}
+                  onChange={(event) => updateForm('includeNoteInPdf', event.target.checked)}
+                />
+                匯出 PDF 時包含備註
+              </label>
             </label>
           </form>
           <section className="attachment-section">

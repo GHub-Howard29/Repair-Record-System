@@ -32,6 +32,7 @@ describe('維修完成規則', () => {
       faultPartsText: '',
       repairContent: '',
       note: '',
+      includeNoteInPdf: false,
       returnedDate: '',
       inspectionFee: 0,
       shippingFee: 0,
@@ -54,6 +55,7 @@ describe('維修完成規則', () => {
       faultPartsText: '',
       repairContent: '',
       note: '',
+      includeNoteInPdf: false,
       returnedDate: '2026-07-20',
       inspectionFee: 0,
       shippingFee: 0,
@@ -76,6 +78,7 @@ describe('維修完成規則', () => {
       faultPartsText: '',
       repairContent: '',
       note: '',
+      includeNoteInPdf: false,
       returnedDate: '',
       inspectionFee: 0,
       shippingFee: 0,
@@ -89,7 +92,7 @@ describe('零件欄位排序', () => {
     const values = {
       receivedDate: '2026-07-17', returnLocation: '台北', customerName: '', serialNumber: 'NIS-12AB34CD56EF',
       shippedDate: '', purchaseType: '', repairDate: '', faultCategory: '', faultPartsText: '燈盤，水泵，控制板',
-      repairContent: '', note: '', returnedDate: '', inspectionFee: 0, shippingFee: 0,
+      repairContent: '', note: '', includeNoteInPdf: false, returnedDate: '', inspectionFee: 0, shippingFee: 0,
       partChargeAmounts: { 水泵: 100, 控制板: 200, 燈盤: 300 },
     } as const
     const repairRecord = buildRepairRecord(values)

@@ -36,6 +36,7 @@ export interface RepairRecord {
   faultParts: string[]
   repairContent: string
   note: string
+  includeNoteInPdf?: boolean
   returnedDate: string
   charges: RepairCharge[]
   attachments: RepairAttachment[]
@@ -56,6 +57,7 @@ export interface RepairFormValues {
   faultPartsText: string
   repairContent: string
   note: string
+  includeNoteInPdf: boolean
   returnedDate: string
   inspectionFee: number
   shippingFee: number

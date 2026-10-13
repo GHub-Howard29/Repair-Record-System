@@ -112,6 +112,7 @@ export function toRepairFormValues(record?: RepairRecord): RepairFormValues {
     faultPartsText: record ? sortFaultPartsByOptionOrder(record.faultParts).join('，') : '',
     repairContent: record?.repairContent ?? '',
     note: record?.note ?? '',
+    includeNoteInPdf: record?.includeNoteInPdf ?? false,
     inspectionFee: record?.charges.find((charge) => charge.id === 'inspection')?.amount ?? 0,
     shippingFee: record?.charges.find((charge) => charge.id === 'shipping')?.amount ?? 0,
     partChargeAmounts:
@@ -174,6 +175,7 @@ export function buildRepairRecord(
     faultParts,
     repairContent: values.repairContent.trim(),
     note: values.note.trim(),
+    includeNoteInPdf: values.includeNoteInPdf ?? false,
     returnedDate: values.returnedDate,
     charges: [
       { ...baseCharges[0], amount: Number(values.inspectionFee) || 0 },
