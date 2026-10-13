@@ -1610,7 +1610,7 @@ function App() {
                 disabled={completed}
                 onChange={(event) => updateForm('note', event.target.value)}
               />
-              <label>
+              <label className="pdf-note-option">
                 <input
                   type="checkbox"
                   checked={form.includeNoteInPdf}

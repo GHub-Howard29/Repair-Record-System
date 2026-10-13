@@ -566,6 +566,20 @@ body,
   font-weight: 700;
 }
 
+.repair-form .pdf-note-option {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.repair-form .pdf-note-option input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
 .repair-form input,
 .repair-form select,
 .repair-form textarea {
