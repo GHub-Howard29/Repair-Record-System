@@ -971,7 +971,10 @@ function App() {
     try {
       setExportMessage('正在準備 PDF，請稍候。')
       const { browserExportService } = await import('./services/exportService')
-      await browserExportService.exportRecordPdf(record)
+      const currentFormRecord = selectedRecord?.id === record.id
+        ? { ...record, note: form.note, includeNoteInPdf: form.includeNoteInPdf }
+        : record
+      await browserExportService.exportRecordPdf(currentFormRecord)
       setExportMessage('PDF 已產生；電腦可於列印視窗另存，手機可選擇 PDF 預覽程式。檔名會自動帶入送回日期與客戶名稱。')
     } catch (error) {
       setExportMessage(error instanceof Error ? error.message : 'PDF 匯出失敗。')
