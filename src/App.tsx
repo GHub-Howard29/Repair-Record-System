@@ -596,6 +596,36 @@ function App() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  async function toggleIncludeNoteInPdf(includeNoteInPdf: boolean) {
+    const nextForm = { ...form, includeNoteInPdf }
+    const hasValidReturnedDate = Boolean(nextForm.returnedDate) && isValidIsoDate(nextForm.returnedDate)
+
+    if (hasValidReturnedDate && !window.confirm('此維修單已填寫送回日期。儲存後其他維修內容將維持鎖定且無法修改。確定要儲存嗎？')) {
+      return
+    }
+
+    setForm(nextForm)
+
+    if (!selectedRecord) {
+      await runMutation(
+        async () => {
+          await saveRecordOperation(nextForm)
+        },
+        () => setMessage('目前正在處理上一個操作，請稍候。'),
+      )
+      return
+    }
+
+    await runMutation(async () => {
+      const latestRecord = (await localRepairRecordService.list()).find((record) => record.id === selectedRecord.id) ?? selectedRecord
+      await persistRecord({
+        ...latestRecord,
+        includeNoteInPdf,
+        updatedAt: new Date().toISOString(),
+      }, [], [], [], true)
+    }, () => setMessage('目前正在處理上一個操作，請稍候。'))
+  }
+
   function selectRecordStatus(status: 'active' | 'completed') {
     setRecordStatusFilter((current) => (isStatusFilterExplicit && current === status ? '' : status))
     setIsStatusFilterExplicit(true)
@@ -682,14 +712,14 @@ function App() {
     }, () => setMessage('目前正在處理上一個操作，請稍候。'))
   }
 
-  async function saveRecordOperation(): Promise<boolean> {
+  async function saveRecordOperation(values: RepairFormValues = form): Promise<boolean> {
     if (selectedRecord && isRepairCompleted(selectedRecord)) {
       setMessage('已完成案件不可修改，請建立新紀錄補充說明。')
       return false
     }
 
-    const errors = validateRepairForm(form)
-    const completionErrors = validateRepairCompletion(form)
+    const errors = validateRepairForm(values)
+    const completionErrors = validateRepairCompletion(values)
 
     if (errors.length > 0 || completionErrors.length > 0) {
       setMessage(
@@ -700,7 +730,7 @@ function App() {
       return false
     }
 
-    if (hasOpenRepairWithSerial(records, form.serialNumber, selectedRecord?.id)) {
+    if (hasOpenRepairWithSerial(records, values.serialNumber, selectedRecord?.id)) {
       setMessage('此製造號碼已有尚未完成的維修紀錄，請從左側列表前往編輯。')
       return false
     }
@@ -708,7 +738,7 @@ function App() {
     const latestSelectedRecord = selectedRecord
       ? (await localRepairRecordService.list()).find((record) => record.id === selectedRecord.id) ?? selectedRecord
       : undefined
-    const builtRecord = buildRepairRecord(form, latestSelectedRecord)
+    const builtRecord = buildRepairRecord(values, latestSelectedRecord)
     const nextRecord = {
       ...builtRecord,
       attachments: latestSelectedRecord ? relabelAttachments(latestSelectedRecord.attachments) : draftAttachments,
@@ -894,6 +924,7 @@ function App() {
     attachmentIds: string[] = [],
     attachmentsToDelete: RepairAttachment[] = [],
     attachmentIdsToDiscard: string[] = [],
+    preserveForm = false,
   ) {
     const nextRecords = await localRepairRecordService.save(record)
     const nextTextTasks = enqueueRepairTextSync(loadSyncQueue(), record)
@@ -920,8 +951,10 @@ function App() {
 
     setRecords(nextRecords)
     setSyncTasks(nextTasks)
-    setSelectedId(record.id)
-    setForm(toRepairFormValues(record))
+    if (!preserveForm) {
+      setSelectedId(record.id)
+      setForm(toRepairFormValues(record))
+    }
     setMessage('已儲存到本機，正在背景同步雲端，可繼續操作。')
     void runSyncQueue()
   }
@@ -1614,8 +1647,8 @@ function App() {
                 <input
                   type="checkbox"
                   checked={form.includeNoteInPdf}
-                  disabled={completed}
-                  onChange={(event) => updateForm('includeNoteInPdf', event.target.checked)}
+                  disabled={operationInProgress}
+                  onChange={(event) => void toggleIncludeNoteInPdf(event.target.checked)}
                 />
                 匯出 PDF 時包含備註
               </label>
